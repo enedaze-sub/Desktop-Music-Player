@@ -1,0 +1,106 @@
+{
+  "requested_model": "claude-opus-5-5",
+  "model_usage": {
+    "claude-opus-5-5": {
+      "inputTokens": 6,
+      "outputTokens": 5159,
+      "cacheReadInputTokens": 15276,
+      "cacheCreationInputTokens": 23486,
+      "webSearchRequests": 0,
+      "costUSD": 0.2941472,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 2186,
+      "canonicalModel": "claude-opus-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "typography": {
+    "family": "NanumSquareRound",
+    "fallback_families": [
+      "NanumSquareRound",
+      "Malgun Gothic",
+      "Segoe UI Symbol"
+    ],
+    "rationale": "NanumSquareRound has round stroke ends and open, geometric Hangul. It feels softer than Segoe UI + Malgun Gothic without looking handwritten. It is wider than Malgun Gothic and its Hangul is tall, so sizes stay the same or go up by at most 1px. Rows that are already tight in the 252px compact height (status, list meta) stay at 11px. Only the two bundled weights are used. Every existing font-weight:600 becomes 700, so Qt never makes a fake semibold. Malgun Gothic covers the CJK and Hangul glyphs that NanumSquareRound lacks. Segoe UI Symbol covers ♪ and arrow glyphs. The time label switches from Cascadia Mono/Consolas to the rounded family so the LCD reads as one voice. A reserved minimum width keeps the layout from jumping as the digits change.",
+    "sizes_px": {
+      "body": 12,
+      "brand": 11,
+      "track_title": 14,
+      "list_title": 13,
+      "list_meta": 11,
+      "status": 11,
+      "time": 12,
+      "nav": 12,
+      "badge": 10
+    },
+    "weights": {
+      "available": [
+        400,
+        700
+      ],
+      "body": 400,
+      "brand": 700,
+      "track_title": 700,
+      "artist_muted": 400,
+      "list_title": 400,
+      "list_meta": 400,
+      "status": 400,
+      "time": 400,
+      "nav": 400,
+      "nav_active": 700,
+      "badge": 700,
+      "buttons_drawer_and_settings": 400,
+      "settings_form_labels": 400,
+      "artwork_fallback_letter": 700,
+      "forbidden": [
+        "Light/300",
+        "font-weight:600",
+        "QFont.DemiBold",
+        "QFont.Medium"
+      ]
+    },
+    "spacing": {
+      "letter_spacing_px": {
+        "hangul_body_and_titles": 0,
+        "badge_uppercase": 0.5,
+        "brand_and_counter_latin_caps": 0.3,
+        "how": "Use QFont.setLetterSpacing(QFont.AbsoluteSpacing, v) in code. Qt stylesheets ignore letter-spacing."
+      },
+      "lcd": {
+        "margins": [
+          10,
+          9,
+          10,
+          8
+        ],
+        "inner_spacing": 3,
+        "title_fixed_height": 42,
+        "budget_px": "9+42+3+15(artist)+3+15(time/badge)+3+16(seek)+8 = 114 <= 124"
+      },
+      "list_row": {
+        "height": 54,
+        "title_rect": "y+7, h21",
+        "meta_rect": "y+29, h16",
+        "note": "At 13/11px the rounded glyphs fit these rects with no clipping, so the delegate geometry stays as is."
+      },
+      "compact_vertical_budget_px": "6+30+4+136+4+34(nav rail)+4+15(status)+10 = 243 <= 252",
+      "nav_rail_min_width": "At width 560 the rail is about 380px, so each of the 4 buttons gets about 94px. Icon 18 + gap + '재생목록' at 12px Regular (~52px) is about 76px, which fits with padding 4px 2px.",
+      "time_label": "setMinimumWidth(fontMetrics().horizontalAdvance('00:00 / 00:00')) so the proportional digits never move the badge"
+    },
+    "checks": [
+      "Load NanumSquareRoundR.ttf and NanumSquareRoundB.ttf with QFontDatabase.addApplicationFont from resource('fonts'), before setting the app font. Take the family string from applicationFontFamilies() instead of hardcoding it. Check that both files resolve to one family with weights 400 and 700. If Bold registers as a separate family, map weight 700 to that family explicitly.",
+      "Bundle the files unmodified with OFL.txt next to them, and do not rename the fonts (OFL 1.1 Reserved Font Name). Malgun Gothic stays system-only and is never copied into the bundle.",
+      "configure_fonts(): replace the families list with ['NanumSquareRound','Malgun Gothic','Segoe UI Symbol'] and keep setPixelSize(12). Set hintingPreference to QFont.PreferVerticalHinting so 11–12px Hangul baselines stay crisp.",
+      "apply_theme(): in the global QWidget rule, change font-family to 'NanumSquareRound','Malgun Gothic','Segoe UI Symbol'. Change brand, trackTitle and badge from font-weight:600 to 700. Change QLabel#time to the same family at 12px. Change badge from 9px to 10px.",
+      "The stylesheet is shared, so the change applies to all four themes (silver_blue, midnight, warm_cream, visualizer), the compact deck, the drawer (library/queue/playlists/video), the settings QDialog, QInputDialog/QMessageBox children and the tray QMenu. The per-theme LCD stylesheet only sets colors, so it inherits the font.",
+      "TrackDelegate: keep setPixelSize(13) title / 11 meta, call setBold(False) explicitly, and never use setWeight(600).",
+      "Artwork fallback letter: set the font to the rounded family at 38px Bold. Glyphs like ♪ fall back to Segoe UI Symbol.",
+      "Screenshot every theme at width 560 and 600, compact and expanded. Confirm that a long Korean/English title wraps to at most 2 lines inside 42px, that '재생목록' and '검색 결과 모두 추가' are not elided, and that the status line is not clipped.",
+      "At 125%/150% Windows scaling (PassThrough rounding), check that 11px meta text stays readable. If it blurs, raise list_meta and status to 12 only when the expanded height allows it.",
+      "Use only Regular 400 and Bold 700 anywhere in the UI, with no Light weights and no synthesized semibold."
+    ],
+    "korean_explanation": "기존 Segoe UI + 맑은 고딕은 획 끝이 각져서 딱딱해 보였습니다. 나눔스퀘어라운드는 획 끝이 둥글고 한글 글자 안쪽이 넓어서 손글씨 느낌 없이 부드럽게 읽힙니다. 이 글꼴은 맑은 고딕보다 폭이 넓기 때문에 크기는 그대로 두거나 1px만 키웠습니다. 기본 12px, 곡 제목 14px Bold, 목록 제목 13px, 보조 정보·상태 11px, 배지 10px Bold입니다. 그래서 폭 560~600, 아트 132, LCD 124, 목록 행 54 배치가 그대로 맞습니다. 굵기는 번들한 Regular(400)와 Bold(700)만 씁니다. 기존 600 굵기는 모두 700으로 바꿔서 가짜 세미볼드가 생기지 않게 했습니다. 나눔스퀘어라운드에 없는 글자는 맑은 고딕으로, 기호는 Segoe UI Symbol로 표시됩니다. 스타일시트를 모든 테마가 함께 쓰므로 컴팩트 화면, 서랍, 설정 창에 모두 적용됩니다."
+  }
+}

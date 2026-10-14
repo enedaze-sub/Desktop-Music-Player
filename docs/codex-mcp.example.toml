@@ -1,0 +1,5 @@
+# Replace C:\path\to\Desktop-Music-Player with your checkout path. No API keys.
+[mcp_servers.claude_opus_design]
+command = 'C:\path\to\Desktop-Music-Player\.venv\Scripts\python.exe'
+args = ['C:\path\to\Desktop-Music-Player\tools\claude_design_mcp.py']
+tool_timeout_sec = 600

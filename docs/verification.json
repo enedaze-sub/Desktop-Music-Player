@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-14",
+  "unit_tests_passed": 11,
+  "ui": {
+    "font_family": "NanumSquareRound",
+    "font_styles": [
+      "Regular",
+      "Bold"
+    ],
+    "deck_vertical_centers": [
+      67,
+      67,
+      67
+    ],
+    "screenshots": 8,
+    "minimum_width_nav_fits": true,
+    "playback_position_ms": 1578,
+    "spectrum_frames": 17,
+    "hidden_visualizer_stopped": true
+  },
+  "native_executable": {
+    "position_ms": 1207,
+    "spectrum_frames": 14,
+    "themes": 4,
+    "font_family": "NanumSquareRound",
+    "bold_available": true,
+    "passed": true
+  },
+  "youtube_video": {
+    "has_video_stream": true,
+    "position_ms": 2014,
+    "error": "NoError",
+    "pending_jobs": 0,
+    "loading": false,
+    "video_frame_valid": true
+  },
+  "performance": {
+    "idle": {
+      "cpu_one_core_percent_mean": 0.19,
+      "rss_mb": 118.1,
+      "sample_seconds": 8
+    },
+    "library": {
+      "tracks": 12926,
+      "scan_seconds": 0.61
+    },
+    "audio_only": {
+      "cpu_one_core_percent_mean": 1.55,
+      "rss_mb": 140.9,
+      "sample_seconds": 8
+    },
+    "visualizer_visible": {
+      "cpu_one_core_percent_mean": 2.72,
+      "rss_mb": 142.4,
+      "sample_seconds": 8
+    },
+    "playing_in_background": {
+      "cpu_one_core_percent_mean": 1.94,
+      "rss_mb": 142.4,
+      "sample_seconds": 8
+    },
+    "youtube_search_results": 10,
+    "youtube_stream_resolved": true,
+    "youtube_playback_position_ms": 5914,
+    "youtube_media_error": "NoError"
+  },
+  "notes": [
+    "Each CPU case sampled for eight seconds on the development PC; CPU percentage uses one logical core as 100%. Results depend on hardware, background load and storage.",
+    "YouTube may reject streams temporarily or restrict videos. No browser credentials or cookies are required or copied."
+  ]
+}

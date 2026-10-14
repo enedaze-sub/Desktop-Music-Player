@@ -1,0 +1,10 @@
+{
+  "provider": "NAVER",
+  "page": "https://hangeul.naver.com/font",
+  "license_page": "https://help.naver.com/service/30016/contents/18088?osType=PC&lang=ko",
+  "archive": "https://hangeul.naver.com/hangeul_static/webfont/zips/nanum-square-round.zip",
+  "files": {
+    "NanumSquareRoundB.ttf": "61fd37816a1ee1a9336876742392d80bdafd340e5124a088aeda20446e2e15de",
+    "NanumSquareRoundR.ttf": "52862fdf05b55ba886ca21998222d9598ef84c975e68046b9a8d8f1af09228a0"
+  }
+}

@@ -1,0 +1,3 @@
+pyinstaller>=6.22
+psutil>=7
+mcp>=1.12,<2

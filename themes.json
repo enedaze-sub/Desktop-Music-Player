@@ -1,0 +1,42 @@
+[
+  {
+    "id": "silver_blue",
+    "name": "실버 블루 · Silver Blue",
+    "bg": "#DDE3EC",
+    "panel": "#F4F7FB",
+    "text": "#18202E",
+    "muted": "#56637A",
+    "accent": "#E8780C",
+    "border": "#A9B4C3"
+  },
+  {
+    "id": "midnight",
+    "name": "미드나이트 · Midnight",
+    "bg": "#0E1320",
+    "panel": "#161C2B",
+    "text": "#E8ECF4",
+    "muted": "#8D97AB",
+    "accent": "#5B9BFF",
+    "border": "#2A3347"
+  },
+  {
+    "id": "warm_cream",
+    "name": "웜 크림 · Warm Cream",
+    "bg": "#EFE6D6",
+    "panel": "#FAF5EC",
+    "text": "#2B2118",
+    "muted": "#6B5B49",
+    "accent": "#C2562B",
+    "border": "#CFC0A8"
+  },
+  {
+    "id": "visualizer",
+    "name": "비주얼라이저 · Visualizer",
+    "bg": "#07090D",
+    "panel": "#0E1218",
+    "text": "#E6FFF7",
+    "muted": "#7F9A93",
+    "accent": "#3EF0C0",
+    "border": "#1E2A2E"
+  }
+]
