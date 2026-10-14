@@ -99,5 +99,20 @@
       1.25,
       1.5
     ]
+  },
+  "native_resize": {
+    "compact_start": [
+      520,
+      320
+    ],
+    "after_corner_drag": [
+      473,
+      263
+    ],
+    "after_bottom_edge_drag": [
+      473,
+      233
+    ],
+    "alpha_zero_click_through_prevented": true
   }
 }
