@@ -1,21 +1,22 @@
 """Compact native MP3-style window with a downward drawer."""
 import json,logging,random,sys,time
+from .scaling import scale_tree,stylesheet
 from pathlib import Path
-from PySide6.QtCore import Qt,QTimer,QThreadPool,QUrl,QPropertyAnimation,QEasingCurve,QSize,Slot
+from PySide6.QtCore import Qt,QTimer,QThreadPool,QUrl,QPropertyAnimation,QEasingCurve,QSize,Slot,Property,QEvent,QAbstractAnimation
 from PySide6.QtGui import QFont,QColor,QDesktopServices,QAction,QIcon,QPainter,QPixmap,QShortcut,QKeySequence,QFontDatabase
 from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QFrame,QLabel,QPushButton,QVBoxLayout,QHBoxLayout,QGridLayout,
  QSizePolicy,QSlider,QLineEdit,QListView,QTabWidget,QComboBox,QFileDialog,QInputDialog,QMessageBox,QDialog,QFormLayout,QCheckBox,
- QSizeGrip,QSystemTrayIcon,QMenu,QAbstractItemView,QDialogButtonBox,QSpinBox,QColorDialog)
+ QSizeGrip,QSystemTrayIcon,QMenu,QAbstractItemView,QDialogButtonBox,QSpinBox,QColorDialog,QTextEdit,QPlainTextEdit,QAbstractSpinBox)
 from PySide6.QtMultimedia import QMediaPlayer
-from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtNetwork import QLocalServer,QLocalSocket
 from .core import Track,Queue,scan_library,app_root,AUDIO,VIDEO,playlist_id
 from .storage import Store
 from .jobs import Job,TrackModel
 from .engine import Engine
-from .widgets import Surface,Artwork,Spectrum,DragBar,TrackDelegate,Deck,LCDFrame
+from .widgets import Surface,Artwork,Spectrum,DragBar,TrackDelegate,Deck,LCDFrame,ElidedLabel,VideoCanvas,ResizeHandle
 from .icons import icon
 from . import youtube
+from .background_editor import BackgroundEditor
 
 def resource(name):return Path(getattr(sys,'_MEIPASS',app_root()))/name
 
@@ -43,16 +44,22 @@ def duration(ms):
 def load_themes():
     return json.loads(resource('themes.json').read_text(encoding='utf-8'))
 
+COMPACT_HEIGHT=252
+EXPANDED_BASE=270
+MIN_PANEL_HEIGHT=240
+
 class Window(QMainWindow):
     def __init__(self,store=None,demo=False):
         super().__init__();self.store=store or Store();self.config=self.store.config();self.themes=load_themes();self.demo=demo
+        self.ui_scale=1.0
         self.setWindowTitle('Desktop Music Player');self.setWindowFlags(Qt.Window|Qt.FramelessWindowHint)
-        self.setAttribute(Qt.WA_TranslucentBackground);self.setMinimumSize(560,252);self.resize(max(560,self.config.get('width',600)),252)
+        self.compact_height=max(COMPACT_HEIGHT,int(self.config.get('compact_height',COMPACT_HEIGHT)))
+        self.setAttribute(Qt.WA_TranslucentBackground);self.setMinimumSize(560,COMPACT_HEIGHT);self.setMaximumSize(1600,16777215);self.resize(max(560,self.config.get('width',600)),self.compact_height)
         self.setAcceptDrops(True);self.queue=Queue();self.queue.repeat=self.config.get('repeat','off');self.queue.set_shuffle(self.config.get('shuffle',False))
         self.engine=Engine(self);self.engine.audio.setVolume(self.config['volume'])
         self.pool=QThreadPool(self);self.pool.setMaxThreadCount(2);self.jobs={};self.job_id=0;self.scan_pending=False
-        self.library=[];self.filtered=[];self.youtube_results=[];self.source='local';self.expanded=False;self.video_widget=None;self.saved_height=self.config.get('panel_height',360)
-        self.surface=Surface(self);self.setCentralWidget(self.surface);outer=QVBoxLayout(self.surface);outer.setContentsMargins(16,6,16,10);outer.setSpacing(4)
+        self.library=[];self.filtered=[];self.youtube_results=[];self.source='local';self.expanded=False;self.video_widget=None;self.saved_height=max(MIN_PANEL_HEIGHT,self.config.get('panel_height',340));self._transitioning=False
+        self.surface=Surface(self);self.setCentralWidget(self.surface);self.header=QWidget(self.surface);outer=QVBoxLayout(self.header);outer.setContentsMargins(0,0,0,0);outer.setSpacing(4)
         self.bar=DragBar(self);self.bar.setFixedHeight(30);bar=QHBoxLayout(self.bar);bar.setContentsMargins(2,0,0,0);bar.setSpacing(5)
         self.brand=QLabel('Desktop Music');self.brand.setObjectName('brand');bar.addWidget(self.brand);bar.addStretch()
         self.pin=self.button('◇','항상 위에 표시',self.toggle_pin);bar.addWidget(self.pin)
@@ -60,10 +67,10 @@ class Window(QMainWindow):
         outer.addWidget(self.bar)
         top=QHBoxLayout();top.setSpacing(12);self.art=Artwork();top.addWidget(self.art)
         self.lcd=LCDFrame();self.lcd.setObjectName('lcd');lcd=QVBoxLayout(self.lcd);lcd.setContentsMargins(10,9,10,8);lcd.setSpacing(3)
-        self.title=QLabel('음악을 골라 주세요');self.title.setObjectName('trackTitle');self.title.setMinimumWidth(100);self.title.setSizePolicy(QSizePolicy.Ignored,QSizePolicy.Fixed);self.title.setWordWrap(True);self.title.setFixedHeight(42);lcd.addWidget(self.title)
-        self.artist=QLabel('로컬 음악 · 유튜브');self.artist.setObjectName('muted');lcd.addWidget(self.artist)
+        self.title=ElidedLabel('음악을 골라 주세요',lines=2);self.title.setObjectName('trackTitle');self.title.setMinimumWidth(100);self.title.setSizePolicy(QSizePolicy.Ignored,QSizePolicy.Fixed);self.title.setWordWrap(True);self.title.setFixedHeight(42);lcd.addWidget(self.title)
+        self.artist=ElidedLabel('로컬 음악 · 유튜브');self.artist.setFixedHeight(16);self.artist.setObjectName('muted');lcd.addWidget(self.artist)
         meta=QHBoxLayout();self.time=QLabel('0:00 / 0:00');self.time.setObjectName('time');self.time.setMinimumWidth(self.time.fontMetrics().horizontalAdvance('00:00 / 00:00'));meta.addWidget(self.time);meta.addStretch();self.badge=QLabel('READY');self.badge.setObjectName('badge');meta.addWidget(self.badge);lcd.addLayout(meta)
-        self.seek=QSlider(Qt.Horizontal);self.seek.setRange(0,1000);self.seek.sliderReleased.connect(self.seek_to);lcd.addWidget(self.seek)
+        self.seek=QSlider(Qt.Horizontal);self.seek.setFocusPolicy(Qt.NoFocus);self.seek.setRange(0,1000);self.seek.sliderReleased.connect(self.seek_to);lcd.addWidget(self.seek)
         top.addWidget(self.lcd,1)
         pad=QFrame();pad.setObjectName('pad');pad.setFixedSize(132,132);pad_layout=QGridLayout(pad);pad_layout.setContentsMargins(6,6,6,6);pad_layout.setSpacing(0)
         self.shuffle=self.button('⤨','셔플',self.toggle_shuffle);pad_layout.addWidget(self.shuffle,0,1,Qt.AlignCenter)
@@ -72,30 +79,33 @@ class Window(QMainWindow):
         pad_layout.addWidget(self.button('›','다음 곡',self.next),1,2)
         self.repeat=self.button('↻','반복 모드',self.toggle_repeat);pad_layout.addWidget(self.repeat,2,1,Qt.AlignCenter);top.addWidget(pad)
         self.deck=Deck(self.art,self.lcd,pad);outer.addWidget(self.deck)
-        controls=QHBoxLayout();controls.setSpacing(16)
+        self.controls=QWidget();self.controls.setFixedHeight(34);controls=QHBoxLayout(self.controls);controls.setContentsMargins(0,0,0,0);controls.setSpacing(16)
         volume_group=QWidget();volume_group.setFixedWidth(132);vol_layout=QHBoxLayout(volume_group);vol_layout.setSpacing(4);vol_layout.setContentsMargins(0,0,0,0)
         mute=self.button('','음소거',lambda:self.engine.audio.setMuted(not self.engine.audio.isMuted()));mute.setProperty('icon_name','volume');mute.setIcon(icon('volume'));vol_layout.addWidget(mute)
-        self.volume=QSlider(Qt.Horizontal);self.volume.setRange(0,100);self.volume.setValue(round(self.config['volume']*100));self.volume.setFixedWidth(66)
+        self.volume=QSlider(Qt.Horizontal);self.volume.setFocusPolicy(Qt.NoFocus);self.volume.setRange(0,100);self.volume.setValue(round(self.config['volume']*100));self.volume.setFixedWidth(66)
         self.volume.valueChanged.connect(self.volume_changed);vol_layout.addWidget(self.volume);self.volume_label=QLabel(f'{self.volume.value()}');self.volume_label.setAlignment(Qt.AlignRight|Qt.AlignVCenter);vol_layout.addWidget(self.volume_label);controls.addWidget(volume_group)
         self.nav_rail=QFrame();self.nav_rail.setObjectName('navRail');nav=QHBoxLayout(self.nav_rail);nav.setContentsMargins(2,2,2,2);nav.setSpacing(2);self.nav_buttons={}
         for name in ('보관함','대기열','재생목록','영상'):
             b=self.button(name,name+' 열기',lambda checked=False,name=name:self.expand(name),wide=True);b.setProperty('nav',True);b.setProperty('active',False);nav.addWidget(b,1);self.nav_buttons[name]=b
-        controls.addWidget(self.nav_rail,1);outer.addLayout(controls)
-        self.status_label=QLabel('폴더를 선택하거나 유튜브를 검색해 시작하세요.');self.status_label.setObjectName('status');outer.addWidget(self.status_label)
-        self.drawer=QFrame();self.drawer.setObjectName('drawer');self.drawer.setMaximumHeight(0);self.drawer.hide();drawer_layout=QVBoxLayout(self.drawer);drawer_layout.setContentsMargins(6,8,6,3);drawer_layout.setSpacing(6)
+        controls.addWidget(self.nav_rail,1);outer.addWidget(self.controls)
+        self.status_label=ElidedLabel('폴더를 선택하거나 유튜브를 검색해 시작하세요.');self.status_label.setFixedHeight(18);self.status_label.setObjectName('status');outer.addWidget(self.status_label)
+        self.drawer_viewport=QWidget(self.surface);self.drawer_viewport.hide();self.drawer=QFrame(self.drawer_viewport);self.drawer.setObjectName('drawer');drawer_layout=QVBoxLayout(self.drawer);drawer_layout.setContentsMargins(6,8,6,3);drawer_layout.setSpacing(6)
         self.tabs=QTabWidget();self.tabs.tabBar().hide();drawer_layout.addWidget(self.tabs)
         self.make_library();self.make_queue();self.make_playlists();self.make_video_page()
-        self.tabs.currentChanged.connect(self.tab_changed);outer.addWidget(self.drawer,1)
-        bottom=QHBoxLayout();bottom.setContentsMargins(0,0,0,0);self.counter=QLabel('LOCAL LIBRARY');self.counter.setObjectName('brand');bottom.addWidget(self.counter);bottom.addStretch();self.grip=QSizeGrip(self);self.grip.setFixedSize(14,14);bottom.addWidget(self.grip);outer.addLayout(bottom)
+        self.tabs.currentChanged.connect(self.tab_changed)
+        self.footer=QWidget(self.surface);bottom=QHBoxLayout(self.footer);bottom.setContentsMargins(0,0,0,0);self.counter=QLabel('LOCAL LIBRARY');self.counter.setObjectName('brand');bottom.addWidget(self.counter);bottom.addStretch();self.grip=QSizeGrip(self);self.grip.setFixedSize(14,14);bottom.addWidget(self.grip)
         self.spectrum=Spectrum(self.lcd);self.spectrum.hide();self.spectrum.setFixedHeight(24);lcd.addWidget(self.spectrum)
         self.engine.changed.connect(self.update_transport);self.engine.ended.connect(lambda:self.next(automatic=True));self.engine.message.connect(self.tell);self.engine.spectrum.connect(self.spectrum.accept)
         self.tick=QTimer(self);self.tick.setInterval(500);self.tick.timeout.connect(self.position_tick);self.tick.start()
         self.filter_timer=QTimer(self);self.filter_timer.setSingleShot(True);self.filter_timer.setInterval(220);self.filter_timer.timeout.connect(self.apply_filter)
         self.search_box.textChanged.connect(lambda:self.filter_timer.start() if self.source=='local' else None)
-        self.anim=QPropertyAnimation(self.drawer,b'maximumHeight',self);self.anim.setDuration(180);self.anim.setEasingCurve(QEasingCurve.OutCubic);self.anim.finished.connect(self.animation_done)
+        self.anim=QPropertyAnimation(self,b'panelExtent',self);self.anim.setDuration(180);self.anim.setEasingCurve(QEasingCurve.OutCubic);self.anim.finished.connect(self.animation_done)
         self.build_tray();self.apply_theme();self.refresh_playlists();self.update_transport()
         self.setWindowOpacity(self.config['opacity']);self.setWindowFlag(Qt.WindowStaysOnTopHint,self.config['always_on_top'])
-        QShortcut(QKeySequence('Ctrl+L'),self,activated=lambda:self.expand('보관함'));QShortcut(QKeySequence('Ctrl+Right'),self,activated=self.next);QShortcut(QKeySequence('Ctrl+Left'),self,activated=self.previous)
+        QApplication.instance().installEventFilter(self)
+        self.brand.setToolTip('Space: 재생/일시정지 · F1: 단축키 도움말')
+        self.resize_handles=[ResizeHandle(self,edges) for edges in (Qt.LeftEdge,Qt.RightEdge,Qt.TopEdge,Qt.BottomEdge,Qt.LeftEdge|Qt.TopEdge,Qt.RightEdge|Qt.TopEdge,Qt.LeftEdge|Qt.BottomEdge,Qt.RightEdge|Qt.BottomEdge)]
+        self.layout_surface();self.set_ui_scale(self.config.get('ui_scale',.8),persist=False)
         if not demo:
             cached=self.store.library();self.set_library(cached)
             restored=self.store.config().get('last_queue',[])
@@ -128,15 +138,18 @@ class Window(QMainWindow):
         page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(4,8,4,4);self.queue_model=TrackModel();self.queue_view=self.list_view(self.queue_model);self.queue_view.doubleClicked.connect(lambda index:self.play_index(index.row()));layout.addWidget(self.queue_view)
         row=QHBoxLayout();row.addWidget(self.button('선택 삭제','선택한 대기 곡 삭제',self.remove_selected,True));row.addWidget(self.button('비우기','재생 종료와 대기열 비우기',self.clear_queue,True));row.addWidget(self.button('목록 저장','현재 대기열을 저장',self.save_playlist,True));row.addStretch();layout.addLayout(row);self.tabs.addTab(page,'대기열')
     def make_playlists(self):
-        page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(4,8,4,4);self.playlist_combo=QComboBox();layout.addWidget(self.playlist_combo)
+        page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(4,8,4,4)
+        self.playlist_combo=QComboBox();layout.addWidget(self.playlist_combo)
         note=QLabel('로컬과 유튜브 곡을 하나의 재생목록에 함께 저장할 수 있어요.\n음악 파일은 복사하지 않고 곡 정보와 위치만 저장합니다.');note.setWordWrap(True);note.setObjectName('muted');layout.addWidget(note)
-        row=QHBoxLayout()
-        for text,method in [('재생',self.load_playlist),('현재 대기열 저장',self.save_playlist),('삭제',self.delete_playlist),('내보내기',self.export_playlist),('가져오기',self.import_playlist)]:row.addWidget(self.button(text,text,method,True))
-        layout.addLayout(row);layout.addStretch();self.tabs.addTab(page,'재생목록')
+        for actions in ([('재생',self.load_playlist),('현재 대기열 저장',self.save_playlist),('삭제',self.delete_playlist)],[('내보내기',self.export_playlist),('가져오기',self.import_playlist)]):
+            row=QHBoxLayout()
+            for text,method in actions:row.addWidget(self.button(text,text,method,True))
+            row.addStretch();layout.addLayout(row)
+        layout.addStretch();self.tabs.addTab(page,'재생목록')
     def make_video_page(self):
         self.video_page=QWidget();self.video_layout=QVBoxLayout(self.video_page);self.video_layout.setContentsMargins(4,8,4,4)
         self.video_note=QLabel('유튜브 곡을 재생한 뒤 영상으로 이어 볼 수 있어요.');self.video_note.setWordWrap(True);self.video_note.setObjectName('muted');self.video_layout.addWidget(self.video_note)
-        self.video_layout.addWidget(self.button('원본 영상으로 이어보기','현재 위치에서 브라우저로 열기',self.open_original,True));self.video_layout.addStretch();self.tabs.addTab(self.video_page,'영상')
+        self.video_layout.addWidget(self.button('원본 영상으로 이어보기','현재 위치에서 브라우저로 열기',self.open_original,True));self.tabs.addTab(self.video_page,'영상')
     def submit(self,fn,args,callback):
         self.job_id+=1;ident=self.job_id;job=Job(ident,fn,*args);self.jobs[ident]=(job,callback)
         job.signals.done.connect(self.job_done);self.pool.start(job);return ident
@@ -188,13 +201,14 @@ class Window(QMainWindow):
         self.engine.play_track(track,video=self.expanded and self.tabs.tabText(self.tabs.currentIndex())=='영상');self.refresh_queue();self.update_transport()
     def toggle_play(self):
         if not self.engine.track:
-            if self.queue.tracks:self.next()
+            if self.queue.current:self.play_index(self.queue.index)
+            elif self.queue.tracks:self.next()
             else:self.expand('보관함')
         else:self.engine.toggle()
     def next(self,automatic=False):
         track=self.queue.next(automatic=automatic)
         if track:self.engine.play_track(track,self.expanded and self.tabs.tabText(self.tabs.currentIndex())=='영상');self.refresh_queue();self.update_transport()
-        else:self.engine.player.stop();self.tell('재생목록의 마지막 곡입니다.');self.update_transport()
+        else:self.engine.player.stop();self.engine.clear_video();self.tell('재생목록의 마지막 곡입니다.');self.update_transport()
     def previous(self):
         track=self.queue.previous()
         if track:self.engine.play_track(track,self.engine.video);self.refresh_queue();self.update_transport()
@@ -213,7 +227,7 @@ class Window(QMainWindow):
     def toggle_repeat(self):
         self.queue.repeat={'off':'all','all':'one','one':'off'}[self.queue.repeat];self.store.set('repeat',self.queue.repeat);self.update_transport()
     def volume_changed(self,value):self.engine.audio.setVolume(value/100);self.volume_label.setText(str(value))
-    def seek_to(self):self.engine.player.setPosition(round(self.seek.value()/1000*self.engine.player.duration()))
+    def seek_to(self):self.engine.seek_to(round(self.seek.value()/1000*self.engine.player.duration()))
     def position_tick(self):
         total=self.engine.player.duration();pos=self.engine.player.position();self.time.setText(duration(pos)+' / '+duration(total))
         if not self.seek.isSliderDown():self.seek.setValue(round(pos/max(1,total)*1000))
@@ -225,39 +239,112 @@ class Window(QMainWindow):
         for b in (self.shuffle,self.repeat):
             b.setIcon(icon(b.property('icon_name'),self.theme['accent'] if b.property('active') else self.theme['muted']));b.style().unpolish(b);b.style().polish(b)
         if track:
-            self.title.setText(track.title);self.title.setToolTip(track.title);self.artist.setText((track.artist or track.album or '내 음악')[:35]);self.badge.setText('YOUTUBE' if track.kind=='youtube' else Path(track.uri).suffix.upper().lstrip('.'));self.art.letter=track.title[:1]
+            self.title.setText(track.title);self.title.setToolTip(track.title);self.artist.setText(track.artist or track.album or '내 음악');self.artist.setToolTip(self.artist.text());self.badge.setText('YOUTUBE' if track.kind=='youtube' else Path(track.uri).suffix.upper().lstrip('.'));self.art.letter=track.title[:1]
         else:self.title.setText('음악을 골라 주세요');self.artist.setText('로컬 음악 · 유튜브');self.badge.setText('READY');self.art.letter='♪'
         self.visual_state()
+    def get_panel_extent(self):return self.height()
+    def set_panel_extent(self,value):self.resize(self.width(),value);self.layout_surface()
+    panelExtent=Property(int,get_panel_extent,set_panel_extent)
+    def px(self,value):return round(value*self.ui_scale)
+    def set_ui_scale(self,value,persist=True):
+        value=max(.5,min(1.5,float(value)))
+        self.finish_transition();old=self.ui_scale;logical_width=self.width()/old
+        compact=self.compact_height/old;panel=self.saved_height/old
+        self._transitioning=True;self.ui_scale=value;self.config['ui_scale']=value
+        scale_tree(self,value);self.setMinimumSize(self.px(560),self.px(EXPANDED_BASE+MIN_PANEL_HEIGHT if self.expanded else COMPACT_HEIGHT));self.setMaximumWidth(self.px(1600))
+        self.compact_height=self.px(compact);self.saved_height=self.px(panel)
+        self.resize(self.px(logical_width),max(self.px(EXPANDED_BASE)+self.saved_height,self.compact_height) if self.expanded else self.compact_height)
+        self.apply_theme();self._transitioning=False;self.deck.layout_children();self.layout_surface()
+        for view in (self.library_view,self.queue_view):view.doItemsLayout();view.viewport().update()
+        if persist:self.store.set('ui_scale',value)
+    def layout_surface(self):
+        if not hasattr(self,'header'):return
+        width=max(0,self.width()-self.px(32))
+        self.header.setGeometry(self.px(16),self.px(6),width,self.px(230))
+        if hasattr(self,'drawer_viewport'):
+            visible_height=max(0,self.height()-self.px(EXPANDED_BASE))
+            self.drawer_viewport.setGeometry(self.px(16),self.px(242),width,visible_height)
+            content_height=self.saved_height if self._transitioning else max(self.px(MIN_PANEL_HEIGHT),visible_height)
+            self.drawer.setGeometry(0,0,width,content_height)
+        if hasattr(self,'footer'):self.footer.setGeometry(self.px(16),self.height()-self.px(26),width,self.px(16))
+        if hasattr(self,'resize_handles'):
+            w,h=self.width(),self.height();e=max(5,self.px(7))
+            geometry=[(0,e,e,h-2*e),(w-e,e,e,h-2*e),(e,0,w-2*e,e),(e,h-e,w-2*e,e),(0,0,e,e),(w-e,0,e,e),(0,h-e,e,e),(w-e,h-e,e,e)]
+            for handle,rect in zip(self.resize_handles,geometry):handle.setGeometry(*rect);handle.show();handle.raise_()
+    def resizeEvent(self,event):
+        super().resizeEvent(event);self.layout_surface()
+        if hasattr(self,'expanded') and self.expanded and not self._transitioning:
+            self.saved_height=max(self.px(MIN_PANEL_HEIGHT),self.height()-self.px(EXPANDED_BASE));self.compact_height=min(self.compact_height,self.height())
+        elif hasattr(self,'expanded') and not self.expanded and not self._transitioning:self.compact_height=max(self.px(COMPACT_HEIGHT),self.height())
     def expand(self,name):
         tab=next((n for n in range(self.tabs.count()) if self.tabs.tabText(n)==name),0)
-        if self.expanded and self.tabs.currentIndex()==tab:
-            self.expanded=False;self.saved_height=max(280,self.drawer.height());self.anim.stop();self.anim.setStartValue(self.drawer.height());self.anim.setEndValue(0);self.anim.start()
-            if self.engine.video:self.switch_video(False)
-            return
-        self.tabs.setCurrentIndex(tab)
-        if not self.expanded:
-            self.expanded=True;self.drawer.show();self.anim.stop();self.anim.setStartValue(0);self.anim.setEndValue(self.saved_height);self.resize(self.width(),252+self.saved_height);self.anim.start()
-        self.tab_changed(tab)
+        close=self.expanded and self.tabs.currentIndex()==tab
+        if close and not self._transitioning:self.saved_height=max(self.px(MIN_PANEL_HEIGHT),self.height()-self.px(EXPANDED_BASE))
+        self.anim.stop();self._transitioning=True
+        self.setMinimumHeight(self.px(COMPACT_HEIGHT));self.setMaximumHeight(16777215)
+        self.expanded=not close
+        if not close:self.tabs.setCurrentIndex(tab);self.drawer_viewport.show()
+        self.footer.hide();self.sync_nav()
+        self.switch_video(self.expanded and self.tabs.tabText(tab)=='영상')
+        self.layout_surface()
+        self.anim.setStartValue(self.get_panel_extent())
+        target=max(self.px(EXPANDED_BASE)+self.saved_height,self.compact_height) if self.expanded else self.compact_height
+        if self.expanded:self.saved_height=max(self.px(MIN_PANEL_HEIGHT),target-self.px(EXPANDED_BASE))
+        self.layout_surface();self.anim.setEndValue(target)
+        self.anim.start()
     def sync_nav(self):
         for name,button in self.nav_buttons.items():
             button.setProperty('active',self.expanded and self.tabs.tabText(self.tabs.currentIndex())==name);button.style().unpolish(button);button.style().polish(button)
-        self.counter.setVisible(self.expanded);self.grip.setVisible(self.expanded)
+        self.footer.setVisible(self.expanded and not self._transitioning)
     def animation_done(self):
-        self.sync_nav()
-        if not self.expanded:self.drawer.hide();self.resize(self.width(),252)
-        else:self.drawer.setMaximumHeight(16777215)
+        self._transitioning=False
+        if self.video_widget:self.video_widget.updates_paused=False
+        if not self.expanded:
+            self.drawer_viewport.hide();self.setMinimumHeight(self.px(COMPACT_HEIGHT));self.setMaximumHeight(16777215);self.resize(self.width(),self.compact_height)
+        else:
+            self.setMinimumHeight(self.px(EXPANDED_BASE+MIN_PANEL_HEIGHT))
+        self.layout_surface();self.sync_nav()
+    def finish_transition(self):
+        if not self._transitioning:return
+        target=self.anim.endValue();self.anim.stop();self.set_panel_extent(target);self.animation_done()
     def tab_changed(self,index):
         self.sync_nav()
-        if not self.expanded:return
-        self.switch_video(self.tabs.tabText(index)=='영상')
+        if self.expanded:self.switch_video(self.tabs.tabText(index)=='영상')
     def switch_video(self,value):
         if value and self.video_widget is None:
-            self.video_widget=QVideoWidget();self.video_widget.setMinimumHeight(180);self.video_layout.insertWidget(0,self.video_widget,1)
-        self.engine.set_video_output(self.video_widget if value else None)
+            self.video_widget=VideoCanvas();self.video_layout.insertWidget(0,self.video_widget,1);scale_tree(self,self.ui_scale)
         if self.video_widget:self.video_widget.setVisible(value)
-        if self.engine.track and self.engine.track.kind=='youtube' and self.engine.video!=value:
-            pos=self.engine.player.position();playing=self.engine.playing();self.engine.play_track(self.engine.track,value,pos,playing)
-        else:self.engine.video=value
+        self.engine.set_video_mode(value,self.video_widget)
+        if self.video_widget:self.video_widget.updates_paused=self._transitioning
+        self.engine.set_video_visible(self.isVisible() and not self.isMinimized())
+    def eventFilter(self,watched,event):
+        if event.type()!=QEvent.KeyPress or QApplication.activeWindow() is not self:return super().eventFilter(watched,event)
+        focus=QApplication.focusWidget();key=event.key();mod=event.modifiers();ctrl=bool(mod&Qt.ControlModifier)
+        editing=isinstance(focus,(QLineEdit,QTextEdit,QPlainTextEdit,QAbstractSpinBox,QComboBox))
+        if ctrl and editing and key in (Qt.Key_Left,Qt.Key_Right,Qt.Key_Up,Qt.Key_Down):return False
+        if ctrl:
+            actions={Qt.Key_L:lambda:self.expand('보관함'),Qt.Key_F:self.focus_search,Qt.Key_Left:self.previous,Qt.Key_Right:self.next,Qt.Key_Up:lambda:self.volume.setValue(self.volume.value()+5),Qt.Key_Down:lambda:self.volume.setValue(self.volume.value()-5),Qt.Key_Q:self.exit_app}
+            for number,name in enumerate(('보관함','대기열','재생목록','영상'),Qt.Key_1):actions[number]=lambda name=name:self.expand(name)
+            if key in actions:actions[key]();return True
+        if editing:return False
+        if key==Qt.Key_F1:self.shortcut_help();return True
+        if key==Qt.Key_Escape and self.expanded:self.expand(self.tabs.tabText(self.tabs.currentIndex()));return True
+        if key==Qt.Key_Space:self.toggle_play();return True
+        if key in (Qt.Key_Left,Qt.Key_Right):
+            seconds=30 if mod&Qt.ShiftModifier else 5
+            self.engine.seek_to(self.engine.player.position()+seconds*1000*(1 if key==Qt.Key_Right else -1));return True
+        if key in (Qt.Key_Up,Qt.Key_Down) and not isinstance(focus,QListView):
+            self.volume.setValue(self.volume.value()+(5 if key==Qt.Key_Up else -5));return True
+        if key==Qt.Key_M:self.engine.audio.setMuted(not self.engine.audio.isMuted());return True
+        if key==Qt.Key_S:self.engine.stop();self.tell('재생을 정지했어요.');return True
+        if key==Qt.Key_Home:self.engine.seek_to(0);return True
+        if key==Qt.Key_Delete and focus is self.queue_view:self.remove_selected();return True
+        return super().eventFilter(watched,event)
+    def focus_search(self):
+        if not self.expanded or self.tabs.currentIndex()!=0:self.expand('보관함')
+        self.finish_transition();self.search_box.setFocus();self.search_box.selectAll()
+    def shortcut_help(self):
+        QMessageBox.information(self,'키보드 단축키','Space  재생 / 일시정지\nS  정지 · M  음소거\n← / →  5초 이동 · Shift + ← / →  30초 이동\n↑ / ↓  볼륨 ±5 (목록에서는 항목 이동)\nCtrl + ↑ / ↓  볼륨 ±5\nCtrl + ← / →  이전 / 다음 곡\nHome  곡 처음으로 · Delete  선택 대기 곡 삭제\nCtrl + 1 / 2 / 3 / 4  보관함 / 대기열 / 재생목록 / 영상\nCtrl + F  검색 · Esc  목록 닫기 · Ctrl + Q  종료\n\n검색창에 글을 입력할 때는 Space와 방향키를 가로채지 않습니다.')
     def open_original(self):
         track=self.engine.track
         if track and track.kind=='youtube':QDesktopServices.openUrl(QUrl(track.uri+'&t='+str(self.engine.player.position()//1000)))
@@ -299,20 +386,23 @@ class Window(QMainWindow):
     def settings(self):
         dialog=QDialog(self);dialog.setWindowTitle('플레이어 꾸미기');layout=QFormLayout(dialog)
         themes=QComboBox();themes.addItems([t['name'] for t in self.themes]);themes.setCurrentIndex(next((n for n,t in enumerate(self.themes) if t['id']==self.config['theme']),0));layout.addRow('테마',themes)
+        scale=QSpinBox();scale.setRange(50,150);scale.setSingleStep(5);scale.setSuffix('%');scale.setValue(round(self.ui_scale*100));layout.addRow('전체 UI 배율 (기본 80%)',scale)
         opacity=QSlider(Qt.Horizontal);opacity.setRange(60,100);opacity.setValue(round(self.config['opacity']*100));layout.addRow('투명도 (60~100%)',opacity)
-        width=QSpinBox();width.setRange(560,900);width.setValue(self.width());layout.addRow('플레이어 폭',width)
-        height=QSpinBox();height.setRange(280,640);height.setValue(self.saved_height);layout.addRow('펼친 목록 높이',height)
+        width=QSpinBox();width.setRange(560,1600);width.setValue(round(self.width()/self.ui_scale));layout.addRow('플레이어 폭 (100% 기준)',width)
+        compact=QSpinBox();compact.setRange(COMPACT_HEIGHT,900);compact.setValue(round(self.compact_height/self.ui_scale));layout.addRow('접힌 창 높이',compact)
+        height=QSpinBox();height.setRange(MIN_PANEL_HEIGHT,900);height.setValue(round(self.saved_height/self.ui_scale));layout.addRow('펼친 목록 높이',height)
         visual=QCheckBox('실제 오디오 비주얼라이저');visual.setChecked(self.config['visualizer']);layout.addRow(visual)
         row=QHBoxLayout();row.addWidget(self.button('배경 이미지','이미지 선택',self.choose_background,True));row.addWidget(self.button('배경 지우기','기본 배경',lambda:self.set_background(''),True));row.addWidget(self.button('강조색','테마 강조색 변경',self.choose_accent,True));row.addWidget(self.button('색 초기화','테마 기본색',lambda:self.set_accent(''),True));layout.addRow(row)
         buttons=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject);layout.addRow(buttons)
+        scale_tree(dialog,self.ui_scale)
         if dialog.exec()==QDialog.Accepted:
-            self.config.update(theme=self.themes[themes.currentIndex()]['id'],opacity=opacity.value()/100,visualizer=visual.isChecked(),width=width.value(),panel_height=height.value())
-            self.saved_height=height.value();self.resize(width.value(),252+(self.saved_height if self.expanded else 0));self.setWindowOpacity(self.config['opacity']);self.apply_theme()
-            for k in ('theme','opacity','visualizer','width','panel_height'):self.store.set(k,self.config[k])
+            self.config.update(theme=self.themes[themes.currentIndex()]['id'],opacity=opacity.value()/100,visualizer=visual.isChecked(),width=width.value(),compact_height=compact.value(),panel_height=height.value())
+            self.finish_transition();self.saved_height=self.px(height.value());self.compact_height=self.px(compact.value());self.resize(self.px(width.value()),max(self.px(EXPANDED_BASE)+self.saved_height,self.compact_height) if self.expanded else self.compact_height);self.set_ui_scale(scale.value()/100);self.setWindowOpacity(self.config['opacity']);self.apply_theme()
+            for k in ('theme','opacity','visualizer','width','compact_height','panel_height'):self.store.set(k,self.config[k])
     def choose_background(self):
-        path,_=QFileDialog.getOpenFileName(self,'배경 이미지 선택','','Images (*.png *.jpg *.jpeg *.webp *.bmp)')
-        if path:self.set_background(path)
-    def set_background(self,path):self.config['background']=path;self.store.set('background',path);self.surface.set_image(path)
+        dialog=BackgroundEditor(self);dialog.exec();dialog.deleteLater()
+    def set_background(self,path):
+        self.config['background']=path;self.store.set('background',path);self.surface.configure_background(self.config)
     def choose_accent(self):
         color=QColorDialog.getColor(QColor(self.theme['accent']),self,'강조색')
         if color.isValid():self.set_accent(color.name())
@@ -325,7 +415,7 @@ class Window(QMainWindow):
     def apply_theme(self):
         self.theme=dict(next((t for t in self.themes if t['id']==self.config['theme']),self.themes[0]))
         if self.config.get('accent'):self.theme['accent']=self.config['accent']
-        t=self.theme;self.surface.set_theme(t);self.surface.set_image(self.config.get('background',''));self.art.accent=t['accent'];self.art.update();self.spectrum.color=t['accent']
+        t=self.theme;self.surface.set_theme(t);self.surface.configure_background(self.config);self.art.accent=t['accent'];self.art.update();self.spectrum.color=t['accent']
         for button in self.findChildren(QPushButton):
             name=button.property('icon_name')
             if name:button.setIcon(icon(name,self.play_ink() if button.objectName()=='play' else t['muted']))
@@ -339,6 +429,7 @@ class Window(QMainWindow):
         a,b,text,muted,border=lcd_colors[t['id']]
         self.lcd.setStyleSheet(f"QFrame#lcd{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {a},stop:1 {b});border:2px solid {border};border-radius:12px;}} QFrame#lcd QLabel{{color:{text};}} QFrame#lcd QLabel#muted,QFrame#lcd QLabel#badge{{color:{muted};}}")
         self.setStyleSheet(self.styleSheet()+f"QFrame#navRail{{background:{t['bg']};border:1px solid {t['border']};border-radius:10px;}} QPushButton[nav=\"true\"]{{padding:4px 2px;font-size:12px;}} QPushButton[nav=\"true\"][active=\"true\"]{{background:{t['panel']};border:1px solid {t['border']};}}")
+        self.setStyleSheet(stylesheet(self.styleSheet(),self.ui_scale));self.lcd.setStyleSheet(stylesheet(self.lcd.styleSheet(),self.ui_scale))
         self.sync_nav()
         self.visual_state()
     def visual_state(self):
@@ -347,8 +438,7 @@ class Window(QMainWindow):
         self.artist.setVisible(not visual_theme)
         self.spectrum.setVisible(visual_theme);self.spectrum.set_active(enabled and self.engine.playing());self.engine.set_visualizer(enabled)
     def build_tray(self):
-        pix=QPixmap(32,32);pix.fill(Qt.transparent);p=QPainter(pix);p.setBrush(QColor('#E8780F'));p.setPen(Qt.NoPen);p.drawEllipse(1,1,30,30);p.setPen(QColor('#FFFFFF'));p.drawText(pix.rect(),Qt.AlignCenter,'♪');p.end()
-        self.setWindowIcon(QIcon(pix));self.tray=QSystemTrayIcon(self.windowIcon(),self);menu=QMenu(self)
+        self.setWindowIcon(QIcon(str(resource('assets/app.ico'))));self.tray=QSystemTrayIcon(self.windowIcon(),self);menu=QMenu(self)
         for name,callback in [('플레이어 열기',self.restore),('재생 / 일시정지',self.toggle_play),('다음 곡',self.next),('종료',self.exit_app)]:action=menu.addAction(name);action.triggered.connect(callback)
         self.tray.setContextMenu(menu);self.tray.setToolTip('Desktop Music Player');self.tray.activated.connect(lambda reason:self.restore() if reason==QSystemTrayIcon.Trigger else None)
         if QSystemTrayIcon.isSystemTrayAvailable() and not self.demo:self.tray.show()
@@ -357,12 +447,13 @@ class Window(QMainWindow):
         else:self.showMinimized()
     def restore(self):self.showNormal();self.raise_();self.activateWindow()
     def exit_app(self):
-        self.store.set('volume',self.volume.value()/100);self.store.set('width',self.width());self.store.set('panel_height',self.saved_height)
+        self.finish_transition();self.store.set('volume',self.volume.value()/100);self.store.set('width',round(self.width()/self.ui_scale));self.store.set('panel_height',round(self.saved_height/self.ui_scale));self.store.set('compact_height',round(self.compact_height/self.ui_scale))
         self.store.set('last_queue',[t.to_dict() for t in self.queue.tracks]);self.engine.stop();self.tray.hide();self.hide();self.deleteLater();QTimer.singleShot(250,QApplication.quit)
     def closeEvent(self,e):e.ignore();self.hide_player()
-    def showEvent(self,e):super().showEvent(e);self.tick.start();self.visual_state()
-    def hideEvent(self,e):super().hideEvent(e);self.tick.stop();self.spectrum.set_active(False);self.engine.set_visualizer(False)
-    def changeEvent(self,e):super().changeEvent(e);QTimer.singleShot(0,self.visual_state)
+    def showEvent(self,e):super().showEvent(e);self.tick.start();self.visual_state();self.engine.set_video_visible(not self.isMinimized())
+    def hideEvent(self,e):super().hideEvent(e);self.tick.stop();self.spectrum.set_active(False);self.engine.set_visualizer(False);self.engine.set_video_visible(False)
+    def changeEvent(self,e):super().changeEvent(e);QTimer.singleShot(0,self.refresh_visibility)
+    def refresh_visibility(self):self.visual_state();self.engine.set_video_visible(self.isVisible() and not self.isMinimized())
     def dragEnterEvent(self,e):
         if e.mimeData().hasUrls():e.acceptProposedAction()
     def dropEvent(self,e):
@@ -371,9 +462,12 @@ class Window(QMainWindow):
         self.add_tracks(tracks);e.acceptProposedAction()
 
 def main():
+    if sys.platform=='win32':
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('DesktopMusicPlayer.Desktop')
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app=QApplication(sys.argv);app.setApplicationName('Desktop Music Player');app.setQuitOnLastWindowClosed(False)
-    configure_fonts()
+    configure_fonts();app.setWindowIcon(QIcon(str(resource('assets/app.ico'))))
     root=app_root();(root/'data').mkdir(exist_ok=True)
     logging.basicConfig(filename=root/'data'/'player.log',level=logging.WARNING,format='%(asctime)s %(levelname)s %(message)s')
     if '--self-test' in sys.argv:
@@ -401,5 +495,5 @@ def main():
         connection=server.nextPendingConnection()
         if connection:connection.close();window.restore()
     server.newConnection.connect(incoming)
-    app.aboutToQuit.connect(lambda:window.tray.hide())
+    app.aboutToQuit.connect(window.tray.hide)
     sys.exit(app.exec())

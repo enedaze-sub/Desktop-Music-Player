@@ -1,1 +1,17 @@
-{"music_roots": ["./music"], "volume": 0.3, "theme": "silver_blue", "opacity": 1.0, "always_on_top": false, "visualizer": false}
+{
+  "music_roots": [
+    "./music"
+  ],
+  "volume": 0.3,
+  "theme": "silver_blue",
+  "opacity": 1.0,
+  "always_on_top": false,
+  "visualizer": false,
+  "ui_scale": 0.8,
+  "background_fit": "cover",
+  "background_zoom": 1,
+  "background_x": 0,
+  "background_y": 0,
+  "background_opacity": 0.3,
+  "background_tint": 0
+}

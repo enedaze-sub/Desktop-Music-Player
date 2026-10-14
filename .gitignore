@@ -16,3 +16,12 @@ music/*
 *.key
 *.pem
 docs/claude_auth*
+
+# Local Claude authentication/design orchestration; retained on developer PC
+Claude 로그인.cmd
+tools/claude_design_mcp.py
+tools/request_design.py
+docs/claude_*
+docs/codex-mcp.example.toml
+노래 플레이어 실행.cmd
+노래 플레이어.exe

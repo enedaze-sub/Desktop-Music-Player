@@ -1,6 +1,6 @@
 {
   "date": "2026-10-14",
-  "unit_tests_passed": 11,
+  "unit_tests_passed": 25,
   "ui": {
     "font_family": "NanumSquareRound",
     "font_styles": [
@@ -8,14 +8,14 @@
       "Bold"
     ],
     "deck_vertical_centers": [
-      67,
-      67,
-      67
+      54,
+      54,
+      54
     ],
     "screenshots": 8,
     "minimum_width_nav_fits": true,
     "playback_position_ms": 1578,
-    "spectrum_frames": 17,
+    "spectrum_frames": 18,
     "hidden_visualizer_stopped": true
   },
   "native_executable": {
@@ -26,46 +26,78 @@
     "bold_available": true,
     "passed": true
   },
-  "youtube_video": {
-    "has_video_stream": true,
-    "position_ms": 2014,
-    "error": "NoError",
-    "pending_jobs": 0,
-    "loading": false,
-    "video_frame_valid": true
-  },
+  "youtube_video": [
+    {
+      "query": "Doul BE ME official",
+      "title": "【AMV】 명일방주 [여명의 진주곡]ㅣ Doul - 「BE ME」 (자막/해석)",
+      "audio_error": "NoError",
+      "video_error": "NoError",
+      "audio_source_unchanged": true,
+      "rendered_frame": true,
+      "paused_position_preserved": true,
+      "minimum_video_contained": true
+    },
+    {
+      "query": "Ar Tonelico III EXEC_COSMOFLIPS lyrics",
+      "title": "Ar Tonelico III - EXEC_COSMOFLIPS/. with Lyrics",
+      "audio_error": "NoError",
+      "video_error": "NoError",
+      "audio_source_unchanged": true,
+      "rendered_frame": true,
+      "paused_position_preserved": true,
+      "minimum_video_contained": true
+    }
+  ],
   "performance": {
     "idle": {
-      "cpu_one_core_percent_mean": 0.19,
-      "rss_mb": 118.1,
+      "cpu_one_core_percent_mean": 0.2,
+      "rss_mb": 121.5,
       "sample_seconds": 8
     },
     "library": {
       "tracks": 12926,
-      "scan_seconds": 0.61
+      "scan_seconds": 9.16
     },
     "audio_only": {
-      "cpu_one_core_percent_mean": 1.55,
-      "rss_mb": 140.9,
+      "cpu_one_core_percent_mean": 2.9,
+      "rss_mb": 144.1,
       "sample_seconds": 8
     },
     "visualizer_visible": {
-      "cpu_one_core_percent_mean": 2.72,
-      "rss_mb": 142.4,
+      "cpu_one_core_percent_mean": 2.91,
+      "rss_mb": 145.8,
       "sample_seconds": 8
     },
     "playing_in_background": {
-      "cpu_one_core_percent_mean": 1.94,
-      "rss_mb": 142.4,
+      "cpu_one_core_percent_mean": 0.38,
+      "rss_mb": 145.8,
       "sample_seconds": 8
     },
     "youtube_search_results": 10,
     "youtube_stream_resolved": true,
-    "youtube_playback_position_ms": 5914,
+    "youtube_playback_position_ms": 5897,
     "youtube_media_error": "NoError"
   },
   "notes": [
     "Each CPU case sampled for eight seconds on the development PC; CPU percentage uses one logical core as 100%. Results depend on hardware, background load and storage.",
     "YouTube may reject streams temporarily or restrict videos. No browser credentials or cookies are required or copied."
-  ]
+  ],
+  "ui_scale": {
+    "default": 0.8,
+    "range": [
+      0.5,
+      1.5
+    ],
+    "tested": [
+      0.5,
+      0.8,
+      1,
+      1.5
+    ],
+    "windows_dpi_tested": [
+      1,
+      1.25,
+      1.5
+    ]
+  }
 }

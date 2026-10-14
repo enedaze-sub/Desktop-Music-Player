@@ -11,7 +11,7 @@ from desktop_music_player.storage import Store
 from desktop_music_player.core import Track
 ROOT=Path(__file__).resolve().parents[1];ART=ROOT/'artifacts';ART.mkdir(exist_ok=True)
 app=QApplication([]);app.setQuitOnLastWindowClosed(False);configure_fonts()
-window=Window(Store(ART/'smoke_state'),demo=True);window.resize(600,228)
+window=Window(Store(ART/'smoke_state'),demo=True);window.resize(window.px(600),window.px(252))
 tracks=[Track('밤의 플레이리스트 · Night Walk',str(ART/'sample.wav'),artist='Desktop Music Player',album='로컬 보관함'),Track('빛나는 계절 · Spring Light','https://www.youtube.com/watch?v=dQw4w9WgXcQ','youtube','YouTube','함께 듣는 곡'),Track('오늘의 작은 쉼표','track3.mp3',album='로컬 음악')]
 window.set_library(tracks);window.queue.replace(tracks);window.queue.select(0);window.engine.track=tracks[0];window.update_transport();window.show();QTest.qWait(250)
 results={}
@@ -29,13 +29,13 @@ for theme in window.themes:
  window.grab().save(str(ART/(theme['id']+'-expanded.png')))
 results['screenshots']=8
 window.config['theme']='silver_blue';window.apply_theme()
-window.resize(560,window.height());QTest.qWait(120)
+window.resize(window.px(560),window.height());QTest.qWait(120)
 for name,b in window.nav_buttons.items():
- required=b.fontMetrics().horizontalAdvance(name)+b.iconSize().width()+12
+ required=b.fontMetrics().horizontalAdvance(name)+b.iconSize().width()+window.px(12)
  assert required<=b.width(),(name,required,b.width())
 window.grab().save(str(ART/'font-minimum-width.png'))
 results['minimum_width_nav_fits']=True
-window.resize(600,window.height())
+window.resize(window.px(600),window.height())
 window.search_box.setText('쉼표');QTest.qWait(350);assert window.library_model.rowCount()==1
 window.search_box.clear();QTest.qWait(350)
 window.store.save_playlist('Mixed',tracks);assert len(window.store.playlist('Mixed'))==3

@@ -3,7 +3,8 @@ import json,sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from .core import Track,app_root
-DEFAULTS={'music_roots':['./music'],'volume':0.3,'theme':'silver_blue','opacity':1.0,'accent':'','background':'','always_on_top':False,'visualizer':False,'width':600,'panel_height':340,'repeat':'off','shuffle':False}
+BACKGROUND_DEFAULTS={'background':'','background_fit':'cover','background_zoom':1.0,'background_x':0.0,'background_y':0.0,'background_opacity':0.3,'background_tint':0.0}
+DEFAULTS={'ui_scale':.8,'music_roots':['./music'],'volume':0.3,'theme':'silver_blue','opacity':1.0,'accent':'','background':'','always_on_top':False,'visualizer':False,'width':600,'compact_height':252,'panel_height':340,'repeat':'off','shuffle':False,**BACKGROUND_DEFAULTS}
 class Store:
     def __init__(self,folder=None):
         self.folder=Path(folder or app_root()/'data');self.folder.mkdir(parents=True,exist_ok=True)
@@ -31,6 +32,8 @@ class Store:
         return data
     def set(self,key,value):
         with self.connect() as c:c.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',(key,json.dumps(value,ensure_ascii=False)))
+    def set_many(self,values):
+        with self.connect() as c:c.executemany('INSERT OR REPLACE INTO settings VALUES(?,?)',[(k,json.dumps(v,ensure_ascii=False)) for k,v in values.items()])
     def roots(self):
         return [str((app_root()/p).resolve()) if not Path(p).is_absolute() else p for p in self.config()['music_roots']]
     def save_library(self,tracks):
