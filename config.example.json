@@ -13,5 +13,8 @@
   "background_x": 0,
   "background_y": 0,
   "background_opacity": 0.3,
-  "background_tint": 0
+  "background_tint": 0,
+  "background_expanded_mode": "follow",
+  "background_expanded": {},
+  "background_list_transparency": 0.0
 }

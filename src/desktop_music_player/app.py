@@ -259,6 +259,7 @@ class Window(QMainWindow):
         if persist:self.store.set('ui_scale',value)
     def layout_surface(self):
         if not hasattr(self,'header'):return
+        self.surface.set_background_view(self.expanded,self.compact_height)
         width=max(0,self.width()-self.px(32))
         self.header.setGeometry(self.px(16),self.px(6),width,self.px(230))
         if hasattr(self,'drawer_viewport'):
@@ -384,25 +385,17 @@ class Window(QMainWindow):
     def toggle_pin(self):
         self.config['always_on_top']=not self.config['always_on_top'];self.setWindowFlag(Qt.WindowStaysOnTopHint,self.config['always_on_top']);self.show();self.store.set('always_on_top',self.config['always_on_top']);self.pin.setIcon(icon('pin',self.theme['accent'] if self.config['always_on_top'] else self.theme['muted']))
     def settings(self):
-        dialog=QDialog(self);dialog.setWindowTitle('플레이어 꾸미기');layout=QFormLayout(dialog)
-        themes=QComboBox();themes.addItems([t['name'] for t in self.themes]);themes.setCurrentIndex(next((n for n,t in enumerate(self.themes) if t['id']==self.config['theme']),0));layout.addRow('테마',themes)
-        scale=QSpinBox();scale.setRange(50,150);scale.setSingleStep(5);scale.setSuffix('%');scale.setValue(round(self.ui_scale*100));layout.addRow('전체 UI 배율 (기본 80%)',scale)
-        opacity=QSlider(Qt.Horizontal);opacity.setRange(60,100);opacity.setValue(round(self.config['opacity']*100));layout.addRow('투명도 (60~100%)',opacity)
-        width=QSpinBox();width.setRange(560,1600);width.setValue(round(self.width()/self.ui_scale));layout.addRow('플레이어 폭 (100% 기준)',width)
-        compact=QSpinBox();compact.setRange(COMPACT_HEIGHT,900);compact.setValue(round(self.compact_height/self.ui_scale));layout.addRow('접힌 창 높이',compact)
-        height=QSpinBox();height.setRange(MIN_PANEL_HEIGHT,900);height.setValue(round(self.saved_height/self.ui_scale));layout.addRow('펼친 목록 높이',height)
-        visual=QCheckBox('실제 오디오 비주얼라이저');visual.setChecked(self.config['visualizer']);layout.addRow(visual)
-        row=QHBoxLayout();row.addWidget(self.button('배경 이미지','이미지 선택',self.choose_background,True));row.addWidget(self.button('배경 지우기','기본 배경',lambda:self.set_background(''),True));row.addWidget(self.button('강조색','테마 강조색 변경',self.choose_accent,True));row.addWidget(self.button('색 초기화','테마 기본색',lambda:self.set_accent(''),True));layout.addRow(row)
-        buttons=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject);layout.addRow(buttons)
-        scale_tree(dialog,self.ui_scale)
-        if dialog.exec()==QDialog.Accepted:
-            self.config.update(theme=self.themes[themes.currentIndex()]['id'],opacity=opacity.value()/100,visualizer=visual.isChecked(),width=width.value(),compact_height=compact.value(),panel_height=height.value())
-            self.finish_transition();self.saved_height=self.px(height.value());self.compact_height=self.px(compact.value());self.resize(self.px(width.value()),max(self.px(EXPANDED_BASE)+self.saved_height,self.compact_height) if self.expanded else self.compact_height);self.set_ui_scale(scale.value()/100);self.setWindowOpacity(self.config['opacity']);self.apply_theme()
-            for k in ('theme','opacity','visualizer','width','compact_height','panel_height'):self.store.set(k,self.config[k])
+        from .settings_editor import SettingsEditor
+        dialog=SettingsEditor(self);dialog.exec();dialog.deleteLater()
+    def apply_background(self,values):
+        self.surface.configure_background(values)
+        if hasattr(self,'drawer'):
+            color=QColor(self.theme['panel']);alpha=round(255*(1-max(0,min(.9,float(values.get('background_list_transparency',0))))))
+            self.drawer.setStyleSheet(f"QFrame#drawer{{background:rgba({color.red()},{color.green()},{color.blue()},{alpha});border:1px solid {self.theme['border']};border-radius:{self.px(10)}px;}}")
     def choose_background(self):
         dialog=BackgroundEditor(self);dialog.exec();dialog.deleteLater()
     def set_background(self,path):
-        self.config['background']=path;self.store.set('background',path);self.surface.configure_background(self.config)
+        self.config['background']=path;self.store.set('background',path);self.apply_background(self.config)
     def choose_accent(self):
         color=QColorDialog.getColor(QColor(self.theme['accent']),self,'강조색')
         if color.isValid():self.set_accent(color.name())
@@ -415,7 +408,7 @@ class Window(QMainWindow):
     def apply_theme(self):
         self.theme=dict(next((t for t in self.themes if t['id']==self.config['theme']),self.themes[0]))
         if self.config.get('accent'):self.theme['accent']=self.config['accent']
-        t=self.theme;self.surface.set_theme(t);self.surface.configure_background(self.config);self.art.accent=t['accent'];self.art.update();self.spectrum.color=t['accent']
+        t=self.theme;self.surface.set_theme(t);self.apply_background(self.config);self.art.accent=t['accent'];self.art.update();self.spectrum.color=t['accent']
         for button in self.findChildren(QPushButton):
             name=button.property('icon_name')
             if name:button.setIcon(icon(name,self.play_ink() if button.objectName()=='play' else t['muted']))
@@ -429,7 +422,7 @@ class Window(QMainWindow):
         a,b,text,muted,border=lcd_colors[t['id']]
         self.lcd.setStyleSheet(f"QFrame#lcd{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {a},stop:1 {b});border:2px solid {border};border-radius:12px;}} QFrame#lcd QLabel{{color:{text};}} QFrame#lcd QLabel#muted,QFrame#lcd QLabel#badge{{color:{muted};}}")
         self.setStyleSheet(self.styleSheet()+f"QFrame#navRail{{background:{t['bg']};border:1px solid {t['border']};border-radius:10px;}} QPushButton[nav=\"true\"]{{padding:4px 2px;font-size:12px;}} QPushButton[nav=\"true\"][active=\"true\"]{{background:{t['panel']};border:1px solid {t['border']};}}")
-        self.setStyleSheet(stylesheet(self.styleSheet(),self.ui_scale));self.lcd.setStyleSheet(stylesheet(self.lcd.styleSheet(),self.ui_scale))
+        self.base_theme_style=self.styleSheet();self.setStyleSheet(stylesheet(self.base_theme_style,self.ui_scale));self.apply_background(self.config);self.lcd.setStyleSheet(stylesheet(self.lcd.styleSheet(),self.ui_scale))
         self.sync_nav()
         self.visual_state()
     def visual_state(self):
@@ -482,7 +475,17 @@ def main():
         frames=[];test.engine.spectrum.connect(lambda value:frames.append(value))
         def finish_test():
             result={'position_ms':test.engine.player.position(),'spectrum_frames':len(frames),'themes':len(test.themes),'font_family':app.font().family(),'bold_available':'Bold' in QFontDatabase.styles(app.font().family())}
-            result['passed']=result['position_ms']>500 and result['spectrum_frames']>1 and result['font_family']=='NanumSquareRound' and result['bold_available']
+            from .settings_editor import SettingsEditor
+            original_theme=test.config['theme'];original_scale=test.ui_scale;source=test.engine.player.source()
+            editor=SettingsEditor(test);editor.themes.setCurrentIndex(1);editor.opacity.setValue(25);editor.scale.setValue(100);editor.apply_preview()
+            result['appearance_live_preview']=test.theme['id']==test.themes[1]['id'] and abs(test.windowOpacity()-.75)<.01 and test.ui_scale==1
+            editor.reject();editor.deleteLater()
+            result['appearance_cancel_restored']=test.config['theme']==original_theme and test.ui_scale==original_scale and test.windowOpacity()>.99
+            background=BackgroundEditor(test);background.draft['background']=str(resource('assets/default-cover.png'));background.view.setCurrentIndex(1);background.mode.setCurrentIndex(2);background.list_transparency.setValue(60);background.render_preview()
+            result['expanded_background_preview']=background.preview_window.expanded and not background.preview.pixmap.isNull() and not test.expanded
+            result['appearance_source_unchanged']=test.engine.player.source()==source
+            background.reject();background.deleteLater()
+            result['passed']=result['position_ms']>500 and result['spectrum_frames']>1 and result['font_family']=='NanumSquareRound' and result['bold_available'] and all(result[key] for key in ('appearance_live_preview','appearance_cancel_restored','expanded_background_preview','appearance_source_unchanged'))
             (folder/'report.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
             test.grab().save(str(folder/'screen.png'));test.engine.stop();test.hide();test.deleteLater();QTimer.singleShot(250,app.quit)
         QTimer.singleShot(1300,finish_test)

@@ -9,6 +9,7 @@ def stylesheet(text,scale):
 def scale_tree(root,scale):
     # Capture authored constraints once; repeated changes always use this baseline.
     for widget in root.findChildren(QWidget):
+        if QWidget.window(widget) is not QWidget.window(root):continue
         base=widget.property('_uiMetrics')
         if base is None:
             base=(widget.minimumSize(),widget.maximumSize(),widget.iconSize() if isinstance(widget,QAbstractButton) else None)
@@ -19,6 +20,7 @@ def scale_tree(root,scale):
         widget.setMaximumSize(pixels(hi.width(),scale) if hi.width()<MAX else MAX,pixels(hi.height(),scale) if hi.height()<MAX else MAX)
         if ico is not None:widget.setIconSize(QSize(max(1,pixels(ico.width(),scale)),max(1,pixels(ico.height(),scale))))
     for layout in root.findChildren(QLayout):
+        if layout.parentWidget() and QWidget.window(layout.parentWidget()) is not QWidget.window(root):continue
         base=layout.property('_uiMetrics')
         if base is None:
             m=layout.contentsMargins();base=(m.left(),m.top(),m.right(),m.bottom(),layout.spacing());layout.setProperty('_uiMetrics',base)

@@ -1,6 +1,6 @@
 {
   "date": "2026-10-14",
-  "unit_tests_passed": 25,
+  "unit_tests_passed": 31,
   "ui": {
     "font_family": "NanumSquareRound",
     "font_styles": [
@@ -24,6 +24,10 @@
     "themes": 4,
     "font_family": "NanumSquareRound",
     "bold_available": true,
+    "appearance_live_preview": true,
+    "appearance_cancel_restored": true,
+    "expanded_background_preview": true,
+    "appearance_source_unchanged": true,
     "passed": true
   },
   "youtube_video": [
@@ -114,5 +118,48 @@
       233
     ],
     "alpha_zero_click_through_prevented": true
-  }
+  },
+  "appearance_iteration": "0.1.3",
+  "appearance_editor": {
+    "settings_size": [
+      544,
+      448
+    ],
+    "background_size": [
+      752,
+      584
+    ],
+    "live_preview_passed": true,
+    "expanded_preview_preserves_actual_drawer": true,
+    "image_cache_reused": true
+  },
+  "appearance_dpi_checks": {
+    "125": {
+      "settings_size": [
+        544,
+        448
+      ],
+      "background_size": [
+        592,
+        560
+      ],
+      "live_preview_passed": true,
+      "expanded_preview_preserves_actual_drawer": true,
+      "image_cache_reused": true
+    },
+    "150": {
+      "settings_size": [
+        485,
+        448
+      ],
+      "background_size": [
+        485,
+        453
+      ],
+      "live_preview_passed": true,
+      "expanded_preview_preserves_actual_drawer": true,
+      "image_cache_reused": true
+    }
+  },
+  "private_settings_preserved_on_update": true
 }

@@ -9,7 +9,7 @@ from PySide6.QtMultimedia import QVideoFrame
 from PySide6.QtWidgets import QWidget,QFrame,QLabel,QHBoxLayout,QPushButton,QStyledItemDelegate,QStyle,QSizePolicy
 class Surface(QWidget):
     def __init__(self,parent=None):
-        super().__init__(parent);self.theme={};self.image=QPixmap();self.original_size=None;self.image_path=None;self.background={};self.cached_background=QPixmap()
+        super().__init__(parent);self.theme={};self.image=QPixmap();self.original_size=None;self.image_path=None;self.background={};self.cached_background=QPixmap();self.expanded_view=False;self.compact_reference=252
     def set_theme(self,theme):self.theme=theme;self.rebuild_background();self.update()
     def set_image(self,path):
         if path==self.image_path:return
@@ -22,8 +22,12 @@ class Surface(QWidget):
             if not image.isNull():self.image=QPixmap.fromImage(image)
         self.rebuild_background();self.update()
     def configure_background(self,values):
-        self.background={k:values[k] for k in ('background_fit','background_zoom','background_x','background_y','background_opacity','background_tint') if k in values}
+        self.background={k:v for k,v in values.items() if k.startswith('background_')}
         self.set_image(values.get('background',''));self.rebuild_background();self.update()
+    def set_background_view(self,expanded,compact_height):
+        state=(bool(expanded),compact_height)
+        if state==(self.expanded_view,self.compact_reference):return
+        self.expanded_view,self.compact_reference=state;self.rebuild_background();self.update()
     def resizeEvent(self,event):
         self.rebuild_background()
         if event:super().resizeEvent(event)
@@ -36,10 +40,13 @@ class Surface(QWidget):
             p.setPen(QColor(255,255,255,15))
             for y in range(0,min(200,self.height()),3):p.drawLine(0,y,self.width(),y)
         if not self.image.isNull():
-            values=self.background;mode=values.get('background_fit','cover');iw,ih=self.image.width(),self.image.height()
-            scale=min(self.width()/iw,self.height()/ih) if mode=='contain' else max(self.original_size.width(),self.original_size.height())/max(iw,ih) if mode=='original' and self.original_size and self.original_size.isValid() else max(self.width()/iw,self.height()/ih)
+            values=dict(self.background);expanded_mode=values.get('background_expanded_mode','follow')
+            if self.expanded_view and expanded_mode=='custom':values.update(values.get('background_expanded') or {})
+            rw=self.width();rh=self.compact_reference if self.expanded_view and expanded_mode=='header' else self.height()
+            mode=values.get('background_fit','cover');iw,ih=self.image.width(),self.image.height()
+            scale=min(rw/iw,rh/ih) if mode=='contain' else max(self.original_size.width(),self.original_size.height())/max(iw,ih) if mode=='original' and self.original_size and self.original_size.isValid() else max(rw/iw,rh/ih)
             scale*=max(.25,min(4,float(values.get('background_zoom',1))))
-            w,h=iw*scale,ih*scale;x=(self.width()-w)/2+float(values.get('background_x',0))*self.width();y=(self.height()-h)/2+float(values.get('background_y',0))*self.height()
+            w,h=iw*scale,ih*scale;x=(rw-w)/2+float(values.get('background_x',0))*rw;y=(rh-h)/2+float(values.get('background_y',0))*rh
             p.setOpacity(max(0,min(1,float(values.get('background_opacity',.3)))));p.setRenderHint(QPainter.SmoothPixmapTransform);p.drawPixmap(QRectF(x,y,w,h),self.image,QRectF(self.image.rect()))
             p.setOpacity(max(0,min(1,float(values.get('background_tint',0)))));p.fillRect(self.rect(),bg);p.setOpacity(1)
         p.setPen(QPen(QColor(self.theme.get('border','#9CA8B7')),1));p.setBrush(Qt.NoBrush);p.drawRoundedRect(rect,16,16);p.end();self.cached_background=pix
