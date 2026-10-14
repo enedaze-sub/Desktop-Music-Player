@@ -44,4 +44,23 @@ class BackgroundTests(unittest.TestCase):
   surface=Surface();surface.resize(200,120);surface.set_theme({'bg':'#26374a','border':'#26374a'});values={**BACKGROUND_DEFAULTS,'background':str(self.image),'background_opacity':1,'background_tint':0};surface.configure_background(values);surface.show();QTest.qWait(20)
   def center():return surface.grab().toImage().pixelColor(100,60)
   self.assertEqual(center().name(),'#e53b28');values['background_tint']=1;surface.configure_background(values);self.assertEqual(center().name(),'#26374a');values['background_tint']=0;values['background_opacity']=0;surface.configure_background(values);self.assertNotEqual(center().name(),'#e53b28');surface.hide();surface.deleteLater()
+ def test_header_crop_is_stable_during_open_close_and_rapid_reversal(self):
+  w=self.w;image=QImage(240,360,QImage.Format_RGB32)
+  for y in range(360):
+   for x in range(240):image.setPixelColor(x,y,QColor(y%255,x%255,90))
+  image.save(str(self.image));w.config.update(background=str(self.image),background_opacity=1,background_expanded_mode='header',background_zoom=1.3,background_x=.1,background_y=-.1);w.apply_background(w.config)
+  points=[(170,30),(170,65),(170,100)]
+  def sample():
+   image=w.surface.cached_background.toImage();return [image.pixelColor(x,y).rgba() for x,y in points]
+  baseline=sample()
+  for _ in range(2):
+   w.expand('보관함');self.assertEqual(sample(),baseline)
+   for _ in range(12):QTest.qWait(20);self.assertEqual(sample(),baseline)
+   w.expand('보관함');self.assertEqual(sample(),baseline)
+   for _ in range(12):QTest.qWait(20);self.assertEqual(sample(),baseline)
+  w.expand('보관함');QTest.qWait(45);w.expand('보관함');QTest.qWait(40);w.expand('보관함');w.finish_transition();self.assertEqual(sample(),baseline)
+ def test_header_reference_follows_direct_compact_height_resize(self):
+  w=self.w;w.config.update(background=str(self.image),background_expanded_mode='header');w.apply_background(w.config);w.resize(w.width(),w.height()+60);QTest.qWait(25)
+  self.assertEqual(w.surface.compact_reference,w.compact_height);self.assertEqual(w.compact_height,w.height())
+  before=w.surface.compact_reference;w.expand('보관함');QTest.qWait(30);w.expand('보관함');w.finish_transition();self.assertEqual(w.surface.compact_reference,before)
 if __name__=='__main__':unittest.main()

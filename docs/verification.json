@@ -1,6 +1,6 @@
 {
   "date": "2026-10-15",
-  "unit_tests_passed": 36,
+  "unit_tests_passed": 39,
   "ui": {
     "font_family": "NanumSquareRound",
     "font_styles": [
@@ -119,7 +119,7 @@
     ],
     "alpha_zero_click_through_prevented": true
   },
-  "appearance_iteration": "0.1.4",
+  "appearance_iteration": "0.1.5",
   "appearance_editor": {
     "settings_size": [
       544,
@@ -211,5 +211,25 @@
     "continuous_input_preview_verified": true,
     "last_track_selection_and_search_after_scaling_verified": true,
     "mouse_focus_outline_removed_keyboard_focus_preserved": true
+  },
+  "header_background_animation": {
+    "opening_and_closing_pixels_preserved": true,
+    "rapid_reversal_verified": true,
+    "direct_compact_resize_reference_updated": true
+  },
+  "numeric_input_layout": {
+    "all_four_themes": true,
+    "ui_scales_tested": [
+      0.5,
+      0.8,
+      1,
+      1.5
+    ],
+    "windows_dpi_tested": [
+      1,
+      1.25,
+      1.5
+    ],
+    "minimum_maximum_signed_decimal_percent_values_fit": true
   }
 }

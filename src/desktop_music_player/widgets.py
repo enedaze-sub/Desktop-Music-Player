@@ -60,7 +60,9 @@ class Surface(QWidget):
         if self.width()<=0 or self.height()<=0:return
         values=dict(self.background);expanded_mode=values.get('background_expanded_mode','follow')
         if self.expanded_view and expanded_mode=='custom':values.update(values.get('background_expanded') or {})
-        rh=self.compact_reference if self.expanded_view and expanded_mode=='header' else self.height()
+        # Closing flips expanded_view before the height animation finishes.
+        # Header framing must keep the compact reference in both directions.
+        rh=self.compact_reference if expanded_mode=='header' else self.height()
         # Changes to an inactive expanded profile do not repaint the real compact window.
         transform=tuple(values.get(key,default) for key,default in [('background_fit','cover'),('background_zoom',1),('background_x',0),('background_y',0),('background_opacity',.3),('background_tint',0)]) if not self.image.isNull() else ()
         key=(self.width(),self.height(),self.devicePixelRatioF(),self.theme.get('id'),self.theme.get('bg'),self.theme.get('border'),self.image.cacheKey(),rh if transform else None,transform)

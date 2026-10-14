@@ -81,7 +81,7 @@ class BackgroundEditor(QDialog):
     def can_edit_transform(self):return self.view.currentIndex()==0 or self.draft['background_expanded_mode']=='custom'
     def percent_control(self,form,label,low,high,value):
         row=QWidget();layout=QHBoxLayout(row);layout.setContentsMargins(0,0,0,0);layout.setSpacing(6)
-        slider=QSlider(Qt.Horizontal);slider.setRange(low,high);slider.setValue(value);slider.setAccessibleName(label);spin=QSpinBox();spin.setRange(low,high);spin.setSuffix('%');spin.setValue(value);spin.setFixedWidth(74)
+        slider=QSlider(Qt.Horizontal);slider.setRange(low,high);slider.setValue(value);slider.setAccessibleName(label);spin=QSpinBox();spin.setRange(low,high);spin.setSuffix('%');spin.setValue(value);spin.setMinimumWidth(88)
         slider.valueChanged.connect(spin.setValue);spin.valueChanged.connect(slider.setValue);layout.addWidget(slider,1);layout.addWidget(spin);form.addRow(label,row);spin.slider=slider;return spin
     def schedule_preview(self):
         # Throttle to the newest draft each frame; continuous dragging never

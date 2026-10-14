@@ -49,7 +49,7 @@ class SettingsEditor(QDialog):
         a=QLabel(str(low)+'%');b=QLabel(str(high)+'%')
         for text in (a,b):text.setObjectName('muted')
         slider=QSlider(Qt.Horizontal);slider.setRange(low,high);slider.setSingleStep(step);slider.setPageStep(10);slider.setValue(value);slider.setAccessibleName(label)
-        spin=QSpinBox();spin.setRange(low,high);spin.setSingleStep(step);spin.setSuffix('%');spin.setValue(value);spin.setFixedWidth(74);spin.setAccessibleName(label)
+        spin=QSpinBox();spin.setRange(low,high);spin.setSingleStep(step);spin.setSuffix('%');spin.setValue(value);spin.setMinimumWidth(88);spin.setAccessibleName(label)
         slider.valueChanged.connect(spin.setValue);spin.valueChanged.connect(slider.setValue)
         for widget in (a,slider,b,spin):layout.addWidget(widget,1 if widget is slider else 0)
         form.addRow(label,row);spin.slider=slider;return spin
