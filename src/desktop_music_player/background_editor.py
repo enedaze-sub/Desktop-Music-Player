@@ -57,7 +57,7 @@ class BackgroundEditor(QDialog):
         self.reset_button=QPushButton('구도 초기화');self.reset_button.clicked.connect(self.reset);row=QHBoxLayout();row.addWidget(self.original_button);row.addWidget(self.reset_button);left.addLayout(row);left.addStretch();scroll=QScrollArea();scroll.setFrameShape(QFrame.NoFrame);scroll.setWidgetResizable(True);scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff);scroll.setFixedWidth(323);scroll.setWidget(controls);controls.setAutoFillBackground(False);scroll.viewport().setAutoFillBackground(False);columns.addWidget(scroll)
         right=QVBoxLayout();self.preview_label=QLabel();self.preview_label.setWordWrap(True);right.addWidget(self.preview_label);self.preview=PlayerPreview();right.addWidget(self.preview,1);columns.addLayout(right,1)
         buttons=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);buttons.button(QDialogButtonBox.Ok).setText('적용');buttons.button(QDialogButtonBox.Cancel).setText('취소');buttons.accepted.connect(self.accept);buttons.rejected.connect(self.reject);root.addWidget(buttons)
-        self.timer=QTimer(self);self.timer.setSingleShot(True);self.timer.setInterval(25);self.timer.timeout.connect(self.render_preview)
+        self.timer=QTimer(self);self.timer.setSingleShot(True);self.timer.setInterval(33);self.timer.timeout.connect(self.render_preview)
         for control in (self.fit,self.zoom,self.x,self.y,self.transparency,self.tint):
             (control.currentIndexChanged if control is self.fit else control.valueChanged).connect(self.controls_changed)
         self.mode.currentIndexChanged.connect(self.mode_changed);self.view.currentIndexChanged.connect(self.view_changed);self.list_transparency.valueChanged.connect(self.controls_changed)
@@ -83,9 +83,13 @@ class BackgroundEditor(QDialog):
         row=QWidget();layout=QHBoxLayout(row);layout.setContentsMargins(0,0,0,0);layout.setSpacing(6)
         slider=QSlider(Qt.Horizontal);slider.setRange(low,high);slider.setValue(value);slider.setAccessibleName(label);spin=QSpinBox();spin.setRange(low,high);spin.setSuffix('%');spin.setValue(value);spin.setFixedWidth(74)
         slider.valueChanged.connect(spin.setValue);spin.valueChanged.connect(slider.setValue);layout.addWidget(slider,1);layout.addWidget(spin);form.addRow(label,row);spin.slider=slider;return spin
+    def schedule_preview(self):
+        # Throttle to the newest draft each frame; continuous dragging never
+        # restarts the timer and postpones rendering until the mouse stops.
+        if not self.closed and not self.timer.isActive():self.timer.start()
     def controls_changed(self,*_):
         if self.can_edit_transform():self.active_values().update(background_fit=['cover','contain','original'][self.fit.currentIndex()],background_zoom=self.zoom.value()/100,background_x=self.x.value()/100,background_y=self.y.value()/100,background_opacity=1-self.transparency.value()/100,background_tint=self.tint.value()/100)
-        self.draft['background_list_transparency']=self.list_transparency.value()/100;self.timer.start()
+        self.draft['background_list_transparency']=self.list_transparency.value()/100;self.schedule_preview()
     def mode_changed(self,*_):self.draft['background_expanded_mode']=self.MODES[self.mode.currentIndex()];self.sync_controls()
     def view_changed(self,*_):self.sync_controls()
     def sync_controls(self):
@@ -94,7 +98,7 @@ class BackgroundEditor(QDialog):
         for control in (self.zoom,self.transparency,self.tint,self.list_transparency):
             with QSignalBlocker(control.slider):control.slider.setValue(control.value())
         del blockers
-        self.update_filename();self.timer.start()
+        self.update_filename();self.schedule_preview()
     def update_filename(self):
         path=self.draft['background'];self.filename.setText(Path(path).name if path else '선택한 이미지가 없습니다.');self.filename.setToolTip(path)
         editing=self.can_edit_transform();self.preview.editable=editing and bool(path)
@@ -122,7 +126,7 @@ class BackgroundEditor(QDialog):
         window._transitioning=True;window.expanded=self.view.currentIndex()==1;window.compact_height=self.owner.compact_height;window.saved_height=self.owner.saved_height
         window.setMinimumHeight(window.px(510 if window.expanded else 252));window.resize(self.owner.width(),max(window.px(270)+window.saved_height,window.compact_height) if window.expanded else window.compact_height)
         window.drawer_viewport.setVisible(window.expanded);window._transitioning=False;window.sync_nav();window.layout_surface();window.apply_background(self.draft)
-        window.repaint();self.preview.set_scene(window.grab())
+        self.preview.set_scene(window.grab())
     def dispose_preview(self):self.preview_window.hide();self.preview_window.deleteLater()
     def accept(self):
         if self.closed:return

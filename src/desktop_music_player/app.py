@@ -13,7 +13,7 @@ from .core import Track,Queue,scan_library,app_root,AUDIO,VIDEO,playlist_id
 from .storage import Store
 from .jobs import Job,TrackModel
 from .engine import Engine
-from .widgets import Surface,Artwork,Spectrum,DragBar,TrackDelegate,Deck,LCDFrame,ElidedLabel,VideoCanvas,ResizeHandle
+from .widgets import Surface,Artwork,Spectrum,DragBar,TrackDelegate,Deck,LCDFrame,ElidedLabel,VideoCanvas,ResizeHandle,install_button_focus_filter
 from .icons import icon
 from . import youtube
 from .background_editor import BackgroundEditor
@@ -35,7 +35,7 @@ def configure_fonts():
             if file.exists():QFontDatabase.addApplicationFont(str(file))
     font=QFont();font.setFamilies(families+['Malgun Gothic','Segoe UI Symbol']);font.setPixelSize(12)
     font.setHintingPreference(QFont.PreferVerticalHinting)
-    QApplication.instance().setFont(font)
+    QApplication.instance().setFont(font);install_button_focus_filter(QApplication.instance())
     return families
 
 def duration(ms):
@@ -121,13 +121,13 @@ class Window(QMainWindow):
                '내보내기':'download','가져오기':'upload','원본 영상으로 이어보기':'external'}
         name=icons.get(text)
         icon_only=not wide or text=='🎲'
-        b=QPushButton('' if name and icon_only else text);b.setToolTip(tip);b.setAccessibleName(tip);b.clicked.connect(callback);b.setCursor(Qt.PointingHandCursor)
+        b=QPushButton('' if name and icon_only else text);b.setProperty('iconOnly',icon_only);b.setToolTip(tip);b.setAccessibleName(tip);b.clicked.connect(callback);b.setCursor(Qt.PointingHandCursor)
         b.setMinimumHeight(30)
         if name:b.setProperty('icon_name',name);b.setIcon(icon(name));b.setIconSize(QSize(18,18))
         if icon_only:b.setFixedSize(30,30)
         return b
     def list_view(self,model):
-        view=QListView();view.setModel(model);view.setItemDelegate(TrackDelegate(view));view.setUniformItemSizes(True);view.setSelectionMode(QAbstractItemView.ExtendedSelection);view.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel);return view
+        view=QListView();view.setModel(model);view.setItemDelegate(TrackDelegate(view));view.setUniformItemSizes(True);view.setLayoutMode(QListView.Batched);view.setBatchSize(128);view.setSelectionMode(QAbstractItemView.ExtendedSelection);view.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel);return view
     def make_library(self):
         page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(4,8,4,4)
         row=QHBoxLayout();self.local_button=self.button('LOCAL','로컬 보관함',lambda:self.change_source('local'),True);self.yt_button=self.button('YOUTUBE','유튜브 검색',lambda:self.change_source('youtube'),True);row.addWidget(self.local_button);row.addWidget(self.yt_button);row.addStretch();row.addWidget(self.button('랜덤 재생','로컬 랜덤 재생',self.random_local,True));row.addWidget(self.button('폴더','음악 폴더 추가',self.choose_folder,True));row.addWidget(self.button('새로고침','보관함 갱신',self.rescan,True));layout.addLayout(row)
@@ -255,7 +255,7 @@ class Window(QMainWindow):
         self.compact_height=self.px(compact);self.saved_height=self.px(panel)
         self.resize(self.px(logical_width),max(self.px(EXPANDED_BASE)+self.saved_height,self.compact_height) if self.expanded else self.compact_height)
         self.apply_theme();self._transitioning=False;self.deck.layout_children();self.layout_surface()
-        for view in (self.library_view,self.queue_view):view.doItemsLayout();view.viewport().update()
+        for view in (self.library_view,self.queue_view):view.viewport().update()
         if persist:self.store.set('ui_scale',value)
     def layout_surface(self):
         if not hasattr(self,'header'):return
@@ -293,9 +293,12 @@ class Window(QMainWindow):
         if self.expanded:self.saved_height=max(self.px(MIN_PANEL_HEIGHT),target-self.px(EXPANDED_BASE))
         self.layout_surface();self.anim.setEndValue(target)
         self.anim.start()
-    def sync_nav(self):
+    def sync_nav(self,force=False):
         for name,button in self.nav_buttons.items():
-            button.setProperty('active',self.expanded and self.tabs.tabText(self.tabs.currentIndex())==name);button.style().unpolish(button);button.style().polish(button)
+            active=self.expanded and self.tabs.tabText(self.tabs.currentIndex())==name
+            changed=button.property('active')!=active
+            if changed:button.setProperty('active',active);button.style().unpolish(button);button.style().polish(button)
+            if changed or force:button.setIcon(icon(button.property('icon_name'),self.theme['accent'] if active else self.theme['muted']))
         self.footer.setVisible(self.expanded and not self._transitioning)
     def animation_done(self):
         self._transitioning=False
@@ -391,7 +394,8 @@ class Window(QMainWindow):
         self.surface.configure_background(values)
         if hasattr(self,'drawer'):
             color=QColor(self.theme['panel']);alpha=round(255*(1-max(0,min(.9,float(values.get('background_list_transparency',0))))))
-            self.drawer.setStyleSheet(f"QFrame#drawer{{background:rgba({color.red()},{color.green()},{color.blue()},{alpha});border:1px solid {self.theme['border']};border-radius:{self.px(10)}px;}}")
+            style=f"QFrame#drawer{{background:rgba({color.red()},{color.green()},{color.blue()},{alpha});border:1px solid {self.theme['border']};border-radius:{self.px(10)}px;}}"
+            if self.drawer.styleSheet()!=style:self.drawer.setStyleSheet(style)
     def choose_background(self):
         dialog=BackgroundEditor(self);dialog.exec();dialog.deleteLater()
     def set_background(self,path):
@@ -408,6 +412,10 @@ class Window(QMainWindow):
     def apply_theme(self):
         self.theme=dict(next((t for t in self.themes if t['id']==self.config['theme']),self.themes[0]))
         if self.config.get('accent'):self.theme['accent']=self.config['accent']
+        signature=(tuple(sorted(self.theme.items())),self.ui_scale)
+        if getattr(self,'_theme_signature',None)==signature:
+            self.apply_background(self.config);self.visual_state();return
+        self._theme_signature=signature
         t=self.theme;self.surface.set_theme(t);self.apply_background(self.config);self.art.accent=t['accent'];self.art.update();self.spectrum.color=t['accent']
         for button in self.findChildren(QPushButton):
             name=button.property('icon_name')
@@ -417,13 +425,17 @@ class Window(QMainWindow):
             if isinstance(delegate,TrackDelegate):delegate.theme=t
             view.viewport().update()
         dark=QColor(t['panel']).lightness()<120;foreground='#081016' if QColor(t['accent']).lightness()>130 else '#FFFFFF'
-        self.setStyleSheet(f'''QWidget{{font-family:'NanumSquareRound','Malgun Gothic','Segoe UI Symbol';font-size:12px;color:{t['text']};}} QMainWindow,QDialog{{background:{t['bg']};}} QLabel{{background:transparent;}} QLabel#brand{{font-size:11px;font-weight:700;color:{t['muted']};}} QLabel#muted,QLabel#status{{color:{t['muted']};}} QLabel#status{{font-size:11px;}} QLabel#trackTitle{{font-size:14px;font-weight:700;}} QLabel#time{{font-family:'NanumSquareRound','Malgun Gothic';font-size:12px;}} QLabel#badge{{font-size:10px;font-weight:700;color:{t['muted']};}} QFrame#lcd{{background:{t['panel']};border:1px solid {t['border']};border-radius:10px;}} QFrame#pad{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {QColor(t['panel']).lighter(108).name()},stop:1 {QColor(t['bg']).darker(106).name()});border:1px solid {t['border']};border-radius:66px;}} QFrame#drawer{{background:{t['panel']};border:1px solid {t['border']};border-radius:10px;}} QPushButton{{background:transparent;border:1px solid transparent;border-radius:7px;padding:4px 6px;}} QPushButton:hover{{background:{t['panel']};border-color:{t['border']};}} QPushButton:focus{{border:1px solid {t['accent']};}} QPushButton[active="true"]{{color:{t['accent']};font-weight:700;}} QPushButton#play{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {QColor(t['accent']).lighter(114).name()},stop:1 {QColor(t['accent']).darker(110).name()});border:1px solid {QColor(t['accent']).darker(125).name()};border-radius:28px;}} QPushButton#play:pressed{{background:{QColor(t['accent']).darker(118).name()};}} QLineEdit,QComboBox,QSpinBox{{background:{t['panel']};border:1px solid {t['border']};border-radius:6px;padding:6px;}} QListView{{background:transparent;border:0;outline:0;}} QListView::item{{padding:7px 9px;border-bottom:1px solid {t['border']};}} QListView::item:selected{{background:{t['bg']};color:{t['text']};border-left:3px solid {t['accent']};}} QTabWidget::pane{{border:0;}} QTabBar::tab{{background:transparent;padding:8px 10px;color:{t['muted']};border-bottom:2px solid transparent;}} QTabBar::tab:selected{{color:{t['text']};border-bottom:2px solid {t['accent']};}} QSlider::groove:horizontal{{height:3px;background:{t['border']};border-radius:1px;}} QSlider::sub-page:horizontal{{background:{t['accent']};}} QSlider::handle:horizontal{{background:{t['accent']};width:9px;margin:-4px 0;border-radius:4px;}} QScrollBar:vertical{{background:transparent;width:7px;}} QScrollBar::handle:vertical{{background:{t['border']};border-radius:3px;min-height:24px;}} QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{{height:0;}} QMenu{{background:{t['panel']};padding:5px;}}''')
+        base_style=f'''QWidget{{font-family:'NanumSquareRound','Malgun Gothic','Segoe UI Symbol';font-size:12px;color:{t['text']};}} QMainWindow,QDialog{{background:{t['bg']};}} QLabel{{background:transparent;}} QLabel#brand{{font-size:11px;font-weight:700;color:{t['muted']};}} QLabel#muted,QLabel#status{{color:{t['muted']};}} QLabel#status{{font-size:11px;}} QLabel#trackTitle{{font-size:14px;font-weight:700;}} QLabel#time{{font-family:'NanumSquareRound','Malgun Gothic';font-size:12px;}} QLabel#badge{{font-size:10px;font-weight:700;color:{t['muted']};}} QFrame#lcd{{background:{t['panel']};border:1px solid {t['border']};border-radius:10px;}} QFrame#pad{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {QColor(t['panel']).lighter(108).name()},stop:1 {QColor(t['bg']).darker(106).name()});border:1px solid {t['border']};border-radius:66px;}} QFrame#drawer{{background:{t['panel']};border:1px solid {t['border']};border-radius:10px;}} QPushButton{{background:transparent;border:1px solid transparent;border-radius:7px;padding:4px 6px;}} QPushButton:hover{{background:{t['panel']};border-color:{t['border']};}} QPushButton[iconOnly="true"]:hover{{border-color:transparent;}} QPushButton[keyboardFocus="true"]:focus{{border:1px solid {t['accent']};}} QPushButton[active="true"]{{color:{t['accent']};font-weight:700;}} QPushButton#play{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {QColor(t['accent']).lighter(114).name()},stop:1 {QColor(t['accent']).darker(110).name()});border:1px solid {QColor(t['accent']).darker(125).name()};border-radius:28px;}} QPushButton#play:pressed{{background:{QColor(t['accent']).darker(118).name()};}} QLineEdit,QComboBox,QSpinBox{{background:{t['panel']};border:1px solid {t['border']};border-radius:6px;padding:6px;}} QListView{{background:transparent;border:0;outline:0;}} QListView::item{{padding:7px 9px;border-bottom:1px solid {t['border']};}} QListView::item:selected{{background:{t['bg']};color:{t['text']};border-left:3px solid {t['accent']};}} QTabWidget::pane{{border:0;}} QTabBar::tab{{background:transparent;padding:8px 10px;color:{t['muted']};border-bottom:2px solid transparent;}} QTabBar::tab:selected{{color:{t['text']};border-bottom:2px solid {t['accent']};}} QSlider::groove:horizontal{{height:3px;background:{t['border']};border-radius:1px;}} QSlider::sub-page:horizontal{{background:{t['accent']};}} QSlider::handle:horizontal{{background:{t['accent']};width:9px;margin:-4px 0;border-radius:4px;}} QScrollBar:vertical{{background:transparent;width:7px;}} QScrollBar::handle:vertical{{background:{t['border']};border-radius:3px;min-height:24px;}} QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{{height:0;}} QMenu{{background:{t['panel']};padding:5px;}}'''
         lcd_colors={'silver_blue':('#2B66C4','#0F3373','#EEF5FF','#A9C3EA','#8A97AA'),'midnight':('#10284F','#07132A','#DCE9FF','#8FA6CC','#243E62'),'warm_cream':('#3C6E86','#1C3B4B','#F6EEDF','#BFD3D9','#819A9E'),'visualizer':('#06191D','#020A0C','#E6FFF7','#86A8A0','#224B45')}
         a,b,text,muted,border=lcd_colors[t['id']]
-        self.lcd.setStyleSheet(f"QFrame#lcd{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {a},stop:1 {b});border:2px solid {border};border-radius:12px;}} QFrame#lcd QLabel{{color:{text};}} QFrame#lcd QLabel#muted,QFrame#lcd QLabel#badge{{color:{muted};}}")
-        self.setStyleSheet(self.styleSheet()+f"QFrame#navRail{{background:{t['bg']};border:1px solid {t['border']};border-radius:10px;}} QPushButton[nav=\"true\"]{{padding:4px 2px;font-size:12px;}} QPushButton[nav=\"true\"][active=\"true\"]{{background:{t['panel']};border:1px solid {t['border']};}}")
-        self.base_theme_style=self.styleSheet();self.setStyleSheet(stylesheet(self.base_theme_style,self.ui_scale));self.apply_background(self.config);self.lcd.setStyleSheet(stylesheet(self.lcd.styleSheet(),self.ui_scale))
-        self.sync_nav()
+        lcd_style=f"QFrame#lcd{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {a},stop:1 {b});border:2px solid {border};border-radius:12px;}} QFrame#lcd QLabel{{color:{text};}} QFrame#lcd QLabel#muted,QFrame#lcd QLabel#badge{{color:{muted};}}"
+        base_style+=f"QFrame#navRail{{background:{t['bg']};border:1px solid {t['border']};border-radius:10px;}} QPushButton[nav=\"true\"]{{padding:4px 2px;font-size:12px;}} QPushButton[nav=\"true\"][active=\"true\"]{{background:{t['panel']};border:1px solid {t['border']};}}"
+        self.base_theme_style=base_style
+        root_style=stylesheet(base_style,self.ui_scale);lcd_style=stylesheet(lcd_style,self.ui_scale)
+        if self.styleSheet()!=root_style:self.setStyleSheet(root_style)
+        if self.lcd.styleSheet()!=lcd_style:self.lcd.setStyleSheet(lcd_style)
+        self.apply_background(self.config)
+        self.sync_nav(force=True)
         self.visual_state()
     def visual_state(self):
         enabled=(self.config['visualizer'] or self.config['theme']=='visualizer') and self.isVisible() and not self.isMinimized()

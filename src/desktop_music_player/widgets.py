@@ -3,14 +3,34 @@ import math,sys,time
 from pathlib import Path
 from .core import app_root
 from .icons import icon
-from PySide6.QtCore import Qt,QRectF,QRect,QTimer,Slot
+from PySide6.QtCore import Qt,QRectF,QRect,QTimer,Slot,QObject,QEvent
 from PySide6.QtGui import QColor,QPainter,QPainterPath,QPen,QPixmap,QLinearGradient,QConicalGradient,QImage,QImageReader,QTextLayout,QTextOption
 from PySide6.QtMultimedia import QVideoFrame
 from PySide6.QtWidgets import QWidget,QFrame,QLabel,QHBoxLayout,QPushButton,QStyledItemDelegate,QStyle,QSizePolicy
+class ButtonFocusFilter(QObject):
+    """Keep keyboard focus visible without a lingering mouse-click outline."""
+    def eventFilter(self,widget,event):
+        if isinstance(widget,QPushButton):
+            visible=widget.property('keyboardFocus') is True
+            target=visible
+            if event.type()==QEvent.MouseButtonPress:target=False
+            elif event.type()==QEvent.FocusIn:
+                if event.reason() in (Qt.TabFocusReason,Qt.BacktabFocusReason,Qt.ShortcutFocusReason):target=True
+                elif event.reason()==Qt.MouseFocusReason:target=False
+            if target!=visible:
+                widget.setProperty('keyboardFocus',target);widget.style().unpolish(widget);widget.style().polish(widget);widget.update()
+        return False
+
+def install_button_focus_filter(app):
+    if not hasattr(app,'_button_focus_filter'):
+        app._button_focus_filter=ButtonFocusFilter(app);app.installEventFilter(app._button_focus_filter)
+
 class Surface(QWidget):
     def __init__(self,parent=None):
         super().__init__(parent);self.theme={};self.image=QPixmap();self.original_size=None;self.image_path=None;self.background={};self.cached_background=QPixmap();self.expanded_view=False;self.compact_reference=252
-    def set_theme(self,theme):self.theme=theme;self.rebuild_background();self.update()
+    def set_theme(self,theme):
+        if self.theme==theme:return
+        self.theme=dict(theme);self.rebuild_background();self.update()
     def set_image(self,path):
         if path==self.image_path:return
         self.image_path=path;self.image=QPixmap();self.original_size=None
@@ -22,8 +42,13 @@ class Surface(QWidget):
             if not image.isNull():self.image=QPixmap.fromImage(image)
         self.rebuild_background();self.update()
     def configure_background(self,values):
-        self.background={k:v for k,v in values.items() if k.startswith('background_')}
-        self.set_image(values.get('background',''));self.rebuild_background();self.update()
+        from copy import deepcopy
+        background=deepcopy({k:v for k,v in values.items() if k.startswith('background_')})
+        path=values.get('background','')
+        if self.background==background and path==self.image_path:return
+        self.background=background
+        if path!=self.image_path:self.set_image(path)
+        else:self.rebuild_background();self.update()
     def set_background_view(self,expanded,compact_height):
         state=(bool(expanded),compact_height)
         if state==(self.expanded_view,self.compact_reference):return
@@ -33,6 +58,14 @@ class Surface(QWidget):
         if event:super().resizeEvent(event)
     def rebuild_background(self):
         if self.width()<=0 or self.height()<=0:return
+        values=dict(self.background);expanded_mode=values.get('background_expanded_mode','follow')
+        if self.expanded_view and expanded_mode=='custom':values.update(values.get('background_expanded') or {})
+        rh=self.compact_reference if self.expanded_view and expanded_mode=='header' else self.height()
+        # Changes to an inactive expanded profile do not repaint the real compact window.
+        transform=tuple(values.get(key,default) for key,default in [('background_fit','cover'),('background_zoom',1),('background_x',0),('background_y',0),('background_opacity',.3),('background_tint',0)]) if not self.image.isNull() else ()
+        key=(self.width(),self.height(),self.devicePixelRatioF(),self.theme.get('id'),self.theme.get('bg'),self.theme.get('border'),self.image.cacheKey(),rh if transform else None,transform)
+        if getattr(self,'_background_key',None)==key and not self.cached_background.isNull():return
+        self._background_key=key
         dpr=self.devicePixelRatioF();pix=QPixmap(round(self.width()*dpr),round(self.height()*dpr));pix.setDevicePixelRatio(dpr);pix.fill(Qt.transparent)
         p=QPainter(pix);p.setRenderHint(QPainter.Antialiasing);rect=QRectF(self.rect()).adjusted(.5,.5,-.5,-.5);path=QPainterPath();path.addRoundedRect(rect,16,16);p.setClipPath(path)
         bg=QColor(self.theme.get('bg','#D9DFE6'));grad=QLinearGradient(0,0,0,self.height());grad.setColorAt(0,bg.lighter(107));grad.setColorAt(1,bg.darker(104));p.fillRect(self.rect(),grad)
@@ -40,9 +73,7 @@ class Surface(QWidget):
             p.setPen(QColor(255,255,255,15))
             for y in range(0,min(200,self.height()),3):p.drawLine(0,y,self.width(),y)
         if not self.image.isNull():
-            values=dict(self.background);expanded_mode=values.get('background_expanded_mode','follow')
-            if self.expanded_view and expanded_mode=='custom':values.update(values.get('background_expanded') or {})
-            rw=self.width();rh=self.compact_reference if self.expanded_view and expanded_mode=='header' else self.height()
+            rw=self.width()
             mode=values.get('background_fit','cover');iw,ih=self.image.width(),self.image.height()
             scale=min(rw/iw,rh/ih) if mode=='contain' else max(self.original_size.width(),self.original_size.height())/max(iw,ih) if mode=='original' and self.original_size and self.original_size.isValid() else max(rw/iw,rh/ih)
             scale*=max(.25,min(4,float(values.get('background_zoom',1))))

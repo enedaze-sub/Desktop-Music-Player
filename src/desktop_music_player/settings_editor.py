@@ -55,7 +55,8 @@ class SettingsEditor(QDialog):
         form.addRow(label,row);spin.slider=slider;return spin
     def number(self,form,label,low,high,value):
         spin=QSpinBox();spin.setRange(low,high);spin.setValue(value);form.addRow(label,spin);return spin
-    def schedule_preview(self,*_):self.timer.start()
+    def schedule_preview(self,*_):
+        if not self.closed and not self.timer.isActive():self.timer.start()
     def apply_preview(self):
         if self.closed:return
         owner=self.owner;owner.config.update(theme=owner.themes[self.themes.currentIndex()]['id'],opacity=1-self.opacity.value()/100,visualizer=self.visual.isChecked())
@@ -66,7 +67,8 @@ class SettingsEditor(QDialog):
         owner.config.update(width=self.width_control.value(),compact_height=self.compact.value(),panel_height=self.panel.value())
         owner.setWindowOpacity(owner.config['opacity']);owner.apply_theme();owner.layout_surface()
         # Keep this dialog's metrics stable while the player's scale changes.
-        self.setStyleSheet(stylesheet(owner.base_theme_style,self.dialog_scale))
+        style=stylesheet(owner.base_theme_style,self.dialog_scale)
+        if self.styleSheet()!=style:self.setStyleSheet(style)
     def open_background(self):
         self.timer.stop();self.apply_preview()
         from .background_editor import BackgroundEditor
