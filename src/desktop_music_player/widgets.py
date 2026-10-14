@@ -180,6 +180,10 @@ class ResizeHandle(QWidget):
     def __init__(self,window,edges):
         super().__init__(window);self.window=window;self.edges=edges;self.drag=None
         self.setObjectName('resizeHandle');self.setMouseTracking(True)
+    def paintEvent(self,event):
+        # Windows layered windows pass clicks through alpha-zero pixels.
+        # A one-step alpha hit surface keeps rounded corners draggable.
+        p=QPainter(self);p.fillRect(self.rect(),QColor(0,0,0,1))
     def active_edges(self):
         return self.edges
     def enterEvent(self,event):

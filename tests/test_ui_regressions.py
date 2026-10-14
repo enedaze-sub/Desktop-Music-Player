@@ -53,6 +53,7 @@ class UIRegressionTests(unittest.TestCase):
   w=self.w;w.resize(700,340);self.app.processEvents();self.assertEqual(w.compact_height,340)
   self.assertEqual(len(w.resize_handles),8)
   self.assertTrue(all(h.active_edges()==h.edges for h in w.resize_handles))
+  self.assertGreater(w.grab().toImage().pixelColor(0,0).alpha(),0)
   w.expand('보관함');w.finish_transition();w.expand('보관함');w.finish_transition();self.assertEqual(w.height(),340)
   w.resize(560,100);self.app.processEvents();self.assertGreaterEqual(w.height(),COMPACT_HEIGHT)
  def test_corner_and_bottom_drag_fallback_changes_both_dimensions(self):
