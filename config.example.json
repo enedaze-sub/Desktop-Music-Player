@@ -18,5 +18,8 @@
   "background_expanded": {},
   "background_list_transparency": 0.0,
   "custom_theme": {},
-  "visualizer_style": "bars"
+  "visualizer_style": "bars",
+  "custom_gradients": {},
+  "compact_height": 224,
+  "layout_version": 2
 }

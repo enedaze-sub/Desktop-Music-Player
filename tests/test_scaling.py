@@ -15,7 +15,7 @@ class ScaleTests(unittest.TestCase):
  def test_default_repeated_live_scaling_keeps_audio_and_proportions(self):
   with tempfile.TemporaryDirectory() as folder:
    w=Window(Store(folder),demo=True);w.show();QTest.qWait(50)
-   self.assertEqual(w.ui_scale,.8);self.assertEqual(w.width(),480);self.assertEqual(w.height(),202)
+   self.assertEqual(w.ui_scale,.8);self.assertEqual(w.width(),480);self.assertEqual(w.height(),179)
    with patch.object(w.engine.player,'setSource') as source,patch.object(w.engine.player,'stop') as stop:
     for scale in (.5,1.5,.8,1,.8):
      w.set_ui_scale(scale);QTest.qWait(30)

@@ -1,0 +1,7 @@
+"""Shared logical geometry for the compact player and its previews."""
+COMPACT_HEIGHT=224
+EXPANDED_BASE=246
+MIN_PANEL_HEIGHT=240
+HEADER_HEIGHT=208
+DRAWER_TOP=218
+LAYOUT_VERSION=2

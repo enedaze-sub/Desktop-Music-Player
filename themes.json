@@ -7,7 +7,8 @@
     "text": "#18202E",
     "muted": "#56637A",
     "accent": "#E8780C",
-    "border": "#A9B4C3"
+    "border": "#A9B4C3",
+    "spectrum": "#E8780C"
   },
   {
     "id": "midnight",
@@ -17,7 +18,8 @@
     "text": "#E8ECF4",
     "muted": "#8D97AB",
     "accent": "#5B9BFF",
-    "border": "#2A3347"
+    "border": "#2A3347",
+    "spectrum": "#5B9BFF"
   },
   {
     "id": "warm_cream",
@@ -27,7 +29,8 @@
     "text": "#2B2118",
     "muted": "#6B5B49",
     "accent": "#C2562B",
-    "border": "#CFC0A8"
+    "border": "#CFC0A8",
+    "spectrum": "#C2562B"
   },
   {
     "id": "visualizer",
@@ -37,7 +40,8 @@
     "text": "#E6FFF7",
     "muted": "#7F9A93",
     "accent": "#3EF0C0",
-    "border": "#1E2A2E"
+    "border": "#1E2A2E",
+    "spectrum": "#3EF0C0"
   },
   {
     "id": "custom",
@@ -47,6 +51,7 @@
     "text": "#2B2118",
     "muted": "#6B5B49",
     "accent": "#C2562B",
-    "border": "#CFC0A8"
+    "border": "#CFC0A8",
+    "spectrum": "#C2562B"
   }
 ]

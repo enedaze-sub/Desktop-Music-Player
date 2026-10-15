@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QFrame,QLabel,QP
  QSizeGrip,QSystemTrayIcon,QMenu,QAbstractItemView,QDialogButtonBox,QSpinBox,QTextEdit,QPlainTextEdit,QAbstractSpinBox)
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtNetwork import QLocalServer,QLocalSocket
-from .core import Track,Queue,scan_library,app_root,AUDIO,VIDEO,playlist_id
+from .core import Track,Queue,scan_library,app_root,AUDIO,VIDEO,playlist_id,youtube_input
 from .storage import Store
 from .jobs import Job,TrackModel,QueueModel
 from .engine import Engine
@@ -17,7 +17,8 @@ from .widgets import Surface,Artwork,Spectrum,DragBar,TrackDelegate,Deck,LCDFram
 from .icons import icon
 from . import youtube
 from .covers import CoverCache
-from .palettes import resolve_theme,lcd_colors
+from .palettes import resolve_theme,lcd_colors,qss_fill,lcd_fill
+from .layout import COMPACT_HEIGHT,EXPANDED_BASE,MIN_PANEL_HEIGHT,HEADER_HEIGHT,DRAWER_TOP,LAYOUT_VERSION
 from .background_editor import BackgroundEditor
 
 def resource(name):return Path(getattr(sys,'_MEIPASS',app_root()))/name
@@ -46,9 +47,6 @@ def duration(ms):
 def load_themes():
     return json.loads(resource('themes.json').read_text(encoding='utf-8'))
 
-COMPACT_HEIGHT=252
-EXPANDED_BASE=270
-MIN_PANEL_HEIGHT=240
 
 class Window(QMainWindow):
     def __init__(self,store=None,demo=False):
@@ -65,9 +63,11 @@ class Window(QMainWindow):
         self.covers=CoverCache(self,enabled=not demo);self.covers.changed.connect(self.cover_changed)
         self.surface=Surface(self);self.setCentralWidget(self.surface);self.header=QWidget(self.surface);outer=QVBoxLayout(self.header);outer.setContentsMargins(0,0,0,0);outer.setSpacing(4)
         self.bar=DragBar(self);self.bar.setFixedHeight(30);bar=QHBoxLayout(self.bar);bar.setContentsMargins(2,0,0,0);bar.setSpacing(5)
-        self.brand=QLabel('Desktop Music');self.brand.setObjectName('brand');bar.addWidget(self.brand);bar.addStretch()
-        self.pin=self.button('◇','항상 위에 표시',self.toggle_pin);bar.addWidget(self.pin)
-        bar.addWidget(self.button('⚙','테마·배경·투명도 설정',self.settings));bar.addWidget(self.button('−','최소화',self.showMinimized));bar.addWidget(self.button('×','트레이로 숨기기',self.hide_player))
+        self.brand=QLabel('Desktop Music');self.brand.setObjectName('brand');self.brand.setFixedWidth(132);bar.addWidget(self.brand)
+        self.status_label=ElidedLabel('음악을 골라 주세요');self.status_label.setObjectName('status');self.status_label.setAlignment(Qt.AlignCenter);self.status_label.setAttribute(Qt.WA_TransparentForMouseEvents);bar.addWidget(self.status_label,1)
+        self.title_tools=QWidget();self.title_tools.setFixedWidth(132);buttons=QHBoxLayout(self.title_tools);buttons.setContentsMargins(0,0,0,0);buttons.setSpacing(4)
+        self.pin=self.button('◇','항상 위에 표시',self.toggle_pin);buttons.addWidget(self.pin)
+        buttons.addWidget(self.button('⚙','테마·배경·투명도 설정',self.settings));buttons.addWidget(self.button('−','최소화',self.showMinimized));buttons.addWidget(self.button('×','트레이로 숨기기',self.hide_player));bar.addWidget(self.title_tools)
         outer.addWidget(self.bar)
         top=QHBoxLayout();top.setSpacing(12);self.art=Artwork();top.addWidget(self.art)
         self.lcd=LCDFrame();self.lcd.setObjectName('lcd');lcd=QVBoxLayout(self.lcd);lcd.setContentsMargins(10,9,10,8);lcd.setSpacing(3)
@@ -92,7 +92,6 @@ class Window(QMainWindow):
         for name in ('보관함','대기열','재생목록','영상'):
             b=self.button(name,name+' 열기',lambda checked=False,name=name:self.expand(name),wide=True);b.setProperty('nav',True);b.setProperty('active',False);nav.addWidget(b,1);self.nav_buttons[name]=b
         controls.addWidget(self.nav_rail,1);outer.addWidget(self.controls)
-        self.status_label=ElidedLabel('폴더를 선택하거나 유튜브를 검색해 시작하세요.');self.status_label.setFixedHeight(18);self.status_label.setObjectName('status');outer.addWidget(self.status_label)
         self.drawer_viewport=QWidget(self.surface);self.drawer_viewport.hide();self.drawer=QFrame(self.drawer_viewport);self.drawer.setObjectName('drawer');drawer_layout=QVBoxLayout(self.drawer);drawer_layout.setContentsMargins(6,8,6,3);drawer_layout.setSpacing(6)
         self.tabs=QTabWidget();self.tabs.tabBar().hide();drawer_layout.addWidget(self.tabs)
         self.make_library();self.make_queue();self.make_playlists();self.make_video_page()
@@ -163,7 +162,7 @@ class Window(QMainWindow):
         if pair:
             if error and pair[2]:self.tell(error)
             pair[1](result,error)
-    def tell(self,message):self.status_label.setText(message);self.status_label.setToolTip(message)
+    def tell(self,message):self.status_label.setText(message);self.status_label.setToolTip(message);self.bar.setToolTip(message)
     def rescan(self):
         if self.scan_pending:return
         self.scan_pending=True;self.tell('음악 폴더를 확인하고 있어요…')
@@ -191,9 +190,18 @@ class Window(QMainWindow):
         self.youtube_next.setEnabled(not self.youtube_loading and self.youtube_has_more)
         page=self.youtube_target_page if self.youtube_loading else self.youtube_page
         self.youtube_page_label.setText(f'{page+1}페이지 · 불러오는 중…' if self.youtube_loading else f'{page+1}페이지 · {len(self.youtube_results)}곡')
-        if hasattr(self,'add_all_button'):self.add_all_button.setText('이 페이지 모두 추가' if self.source=='youtube' and paged else '검색 결과 모두 추가')
+        if hasattr(self,'add_all_button'):
+            is_playlist=self.source=='youtube' and self.youtube_session is not None and bool(self.youtube_session.playlist_id)
+            self.add_all_button.setText(f'재생목록 전체 추가 ({len(self.youtube_results)}곡)' if is_playlist else '이 페이지 모두 추가' if self.source=='youtube' and paged else '검색 결과 모두 추가')
+            self.add_all_button.setEnabled(self.source=='local' or (not self.youtube_loading and bool(self.youtube_results)))
+            self.add_all_button.setToolTip('재생목록의 모든 곡을 목록 순서대로 대기열에 추가' if is_playlist else '표시 중인 곡을 대기열에 추가')
     def search(self):
-        if self.source=='local':self.apply_filter();return
+        if self.source=='local':
+            value=self.search_box.text()
+            try:query=youtube_input(value)
+            except ValueError:query=''
+            if query.startswith(('https://','http://')):self.change_source('youtube');self.search_box.setText(query)
+            else:self.apply_filter();return
         try:session=youtube.SearchSession(self.search_box.text())
         except ValueError as error:self.tell(str(error));return
         if self.youtube_session:self.youtube_session.close()
@@ -202,7 +210,7 @@ class Window(QMainWindow):
     def load_youtube_page(self,page):
         session=self.youtube_session
         if session is None or page<0:return
-        self.youtube_request+=1;request=self.youtube_request;self.youtube_loading=True;self.youtube_target_page=page;self.update_youtube_pager();self.tell('유튜브에서 찾고 있어요…')
+        self.youtube_request+=1;request=self.youtube_request;self.youtube_loading=True;self.youtube_target_page=page;self.update_youtube_pager();self.tell('재생목록 전체를 불러오고 있어요…' if session.playlist_id else '유튜브에서 찾고 있어요…')
         def found(result,error):
             if self.youtube_session is not session or request!=self.youtube_request:return
             self.youtube_loading=False
@@ -213,7 +221,7 @@ class Window(QMainWindow):
                 self.youtube_has_more=result['has_more']
                 if self.source=='youtube':
                     self.library_model.replace(self.youtube_results);self.library_view.scrollToTop()
-                    self.tell(f'{len(self.youtube_results)}곡 찾았어요. 더블클릭하면 재생합니다.' if result['tracks'] else '마지막 검색 결과입니다.' if page else '검색 결과가 없습니다.')
+                    self.tell(f'재생목록 {len(self.youtube_results)}곡을 불러왔어요. 전체 추가 버튼으로 한 번에 등록할 수 있어요.' if session.playlist_id and result['tracks'] else f'{len(self.youtube_results)}곡 찾았어요. 더블클릭하면 재생합니다.' if result['tracks'] else '마지막 검색 결과입니다.' if page else '검색 결과가 없습니다.')
             elif error and self.source=='youtube':self.tell(error+' 다시 검색하거나 페이지를 눌러 주세요.')
             self.update_youtube_pager()
         self.submit(session.get_page,(page,),found,report_error=False)
@@ -338,10 +346,10 @@ class Window(QMainWindow):
         if not hasattr(self,'header'):return
         self.surface.set_background_view(self.expanded,self.compact_height)
         width=max(0,self.width()-self.px(32))
-        self.header.setGeometry(self.px(16),self.px(6),width,self.px(230))
+        self.header.setGeometry(self.px(16),self.px(6),width,self.px(HEADER_HEIGHT))
         if hasattr(self,'drawer_viewport'):
             visible_height=max(0,self.height()-self.px(EXPANDED_BASE))
-            self.drawer_viewport.setGeometry(self.px(16),self.px(242),width,visible_height)
+            self.drawer_viewport.setGeometry(self.px(16),self.px(DRAWER_TOP),width,visible_height)
             content_height=self.saved_height if self._transitioning else max(self.px(MIN_PANEL_HEIGHT),visible_height)
             self.drawer.setGeometry(0,0,width,content_height)
         if hasattr(self,'footer'):self.footer.setGeometry(self.px(16),self.height()-self.px(26),width,self.px(16))
@@ -489,7 +497,7 @@ class Window(QMainWindow):
         if getattr(self,'_theme_signature',None)==signature:
             self.apply_background(self.config);self.visual_state();return
         self._theme_signature=signature
-        t=self.theme;self.surface.set_theme(t);self.apply_background(self.config);self.art.accent=t['accent'];self.art.update();self.spectrum.color=t['accent']
+        t=self.theme;self.surface.set_theme(t);self.apply_background(self.config);self.art.accent=t['accent'];self.art.update();self.spectrum.set_colors(t['spectrum'],t['spectrum_end'],t['spectrum_direction'])
         for button in self.findChildren(QPushButton):
             name=button.property('icon_name')
             if name:button.setIcon(icon(name,self.play_ink() if button.objectName()=='play' else t['muted']))
@@ -497,12 +505,14 @@ class Window(QMainWindow):
             delegate=view.itemDelegate()
             if isinstance(delegate,TrackDelegate):delegate.theme=t
             view.viewport().update()
-        dark=QColor(t['panel']).lightness()<120;foreground='#081016' if QColor(t['accent']).lightness()>130 else '#FFFFFF'
-        base_style=f'''QWidget{{font-family:'NanumSquareRound','Malgun Gothic','Segoe UI Symbol';font-size:12px;color:{t['text']};}} QMainWindow,QDialog{{background:{t['bg']};}} QLabel{{background:transparent;}} QLabel#brand{{font-size:11px;font-weight:700;color:{t['muted']};}} QLabel#muted,QLabel#status{{color:{t['muted']};}} QLabel#status{{font-size:11px;}} QLabel#trackTitle{{font-size:14px;font-weight:700;}} QLabel#time{{font-family:'NanumSquareRound','Malgun Gothic';font-size:12px;}} QLabel#badge{{font-size:10px;font-weight:700;color:{t['muted']};}} QFrame#lcd{{background:{t['panel']};border:1px solid {t['border']};border-radius:10px;}} QFrame#pad{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {QColor(t['panel']).lighter(108).name()},stop:1 {QColor(t['bg']).darker(106).name()});border:1px solid {t['border']};border-radius:66px;}} QFrame#drawer{{background:{t['panel']};border:1px solid {t['border']};border-radius:10px;}} QPushButton{{background:transparent;border:1px solid transparent;border-radius:7px;padding:4px 6px;}} QPushButton:hover{{background:{t['panel']};border-color:{t['border']};}} QPushButton[iconOnly="true"]:hover{{border-color:transparent;}} QPushButton[keyboardFocus="true"]:focus{{border:1px solid {t['accent']};}} QPushButton[active="true"]{{color:{t['accent']};font-weight:700;}} QPushButton#play{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {QColor(t['accent']).lighter(114).name()},stop:1 {QColor(t['accent']).darker(110).name()});border:1px solid {QColor(t['accent']).darker(125).name()};border-radius:28px;}} QPushButton#play:pressed{{background:{QColor(t['accent']).darker(118).name()};}} QLineEdit,QComboBox,QAbstractSpinBox{{background:{t['panel']};border:1px solid {t['border']};border-radius:6px;padding:6px;}} QAbstractSpinBox QLineEdit{{background:transparent;border:0;border-radius:0;padding:0;}} QListView{{background:transparent;border:0;outline:0;}} QListView::item{{padding:7px 9px;border-bottom:1px solid {t['border']};}} QListView::item:selected{{background:{t['bg']};color:{t['text']};border-left:3px solid {t['accent']};}} QTabWidget::pane{{border:0;}} QTabBar::tab{{background:transparent;padding:8px 10px;color:{t['muted']};border-bottom:2px solid transparent;}} QTabBar::tab:selected{{color:{t['text']};border-bottom:2px solid {t['accent']};}} QSlider::groove:horizontal{{height:3px;background:{t['border']};border-radius:1px;}} QSlider::sub-page:horizontal{{background:{t['accent']};}} QSlider::handle:horizontal{{background:{t['accent']};width:9px;margin:-4px 0;border-radius:4px;}} QScrollBar:vertical{{background:transparent;width:7px;}} QScrollBar::handle:vertical{{background:{t['border']};border-radius:3px;min-height:24px;}} QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{{height:0;}} QMenu{{background:{t['panel']};padding:5px;}}'''
+        panel_fill=qss_fill(t,'panel');accent_fill=qss_fill(t,'accent')
+        base_style=f'''QWidget{{font-family:'NanumSquareRound','Malgun Gothic','Segoe UI Symbol';font-size:12px;color:{t['text']};}} QMainWindow,QDialog{{background:{t['bg']};}} QLabel{{background:transparent;}} QLabel#brand{{font-size:11px;font-weight:700;color:{t['muted']};}} QLabel#muted,QLabel#status{{color:{t['muted']};}} QLabel#status{{font-size:11px;}} QLabel#trackTitle{{font-size:14px;font-weight:700;}} QLabel#time{{font-family:'NanumSquareRound','Malgun Gothic';font-size:12px;}} QLabel#badge{{font-size:10px;font-weight:700;color:{t['muted']};}} QFrame#lcd{{background:{panel_fill};border:1px solid {t['border']};border-radius:10px;}} QFrame#pad{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {QColor(t['panel']).lighter(108).name()},stop:1 {QColor(t['bg']).darker(106).name()});border:1px solid {t['border']};border-radius:66px;}} QFrame#drawer{{background:{panel_fill};border:1px solid {t['border']};border-radius:10px;}} QPushButton{{background:transparent;border:1px solid transparent;border-radius:7px;padding:4px 6px;}} QPushButton:hover{{background:{panel_fill};border-color:{t['border']};}} QPushButton[iconOnly="true"]:hover{{border-color:transparent;}} QPushButton[keyboardFocus="true"]:focus{{border:1px solid {t['accent']};}} QPushButton[active="true"]{{color:{t['accent']};font-weight:700;}} QPushButton#play{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {QColor(t['accent']).lighter(114).name()},stop:1 {QColor(t['accent']).darker(110).name()});border:1px solid {QColor(t['accent']).darker(125).name()};border-radius:28px;}} QPushButton#play:pressed{{background:{QColor(t['accent']).darker(118).name()};}} QLineEdit,QComboBox,QAbstractSpinBox{{background:{panel_fill};border:1px solid {t['border']};border-radius:6px;padding:6px;}} QAbstractSpinBox QLineEdit{{background:transparent;border:0;border-radius:0;padding:0;}} QListView{{background:transparent;border:0;outline:0;}} QListView::item{{padding:7px 9px;border-bottom:1px solid {t['border']};}} QListView::item:selected{{background:{t['bg']};color:{t['text']};border-left:3px solid {t['accent']};}} QTabWidget::pane{{border:0;}} QTabBar::tab{{background:transparent;padding:8px 10px;color:{t['muted']};border-bottom:2px solid transparent;}} QTabBar::tab:selected{{color:{t['text']};border-bottom:2px solid {t['accent']};}} QSlider::groove:horizontal{{height:3px;background:{t['border']};border-radius:1px;}} QSlider::sub-page:horizontal{{background:{t['accent']};}} QSlider::handle:horizontal{{background:{t['accent']};width:9px;margin:-4px 0;border-radius:4px;}} QScrollBar:vertical{{background:transparent;width:7px;}} QScrollBar::handle:vertical{{background:{t['border']};border-radius:3px;min-height:24px;}} QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{{height:0;}} QMenu{{background:{panel_fill};padding:5px;}}'''
+        if t.get('accent_end'):base_style+=f"QPushButton#play{{background:{accent_fill};}} QSlider::sub-page:horizontal{{background:{accent_fill};}}"
+        if t.get('panel_end'):base_style+=f"QFrame#pad{{background:{panel_fill};}}"
         a,b,text,muted,border=lcd_colors(t)
         self.spectrum.background=b
-        lcd_style=f"QFrame#lcd{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {a},stop:1 {b});border:2px solid {border};border-radius:12px;}} QFrame#lcd QLabel{{color:{text};}} QFrame#lcd QLabel#muted,QFrame#lcd QLabel#badge{{color:{muted};}}"
-        base_style+=f"QFrame#navRail{{background:{t['bg']};border:1px solid {t['border']};border-radius:10px;}} QPushButton[nav=\"true\"]{{padding:4px 2px;font-size:12px;}} QPushButton[nav=\"true\"][active=\"true\"]{{background:{t['panel']};border:1px solid {t['border']};}}"
+        lcd_style=f"QFrame#lcd{{background:{lcd_fill(t)};border:2px solid {border};border-radius:12px;}} QFrame#lcd QLabel{{color:{text};}} QFrame#lcd QLabel#muted,QFrame#lcd QLabel#badge{{color:{muted};}}"
+        base_style+=f"QFrame#navRail{{background:{t['bg']};border:1px solid {t['border']};border-radius:10px;}} QPushButton[nav=\"true\"]{{padding:4px 2px;font-size:12px;}} QPushButton[nav=\"true\"][active=\"true\"]{{background:{panel_fill};border:1px solid {t['border']};}}"
         self.base_theme_style=base_style
         root_style=stylesheet(base_style,self.ui_scale);lcd_style=stylesheet(lcd_style,self.ui_scale)
         if self.styleSheet()!=root_style:self.setStyleSheet(root_style)
@@ -531,7 +541,7 @@ class Window(QMainWindow):
     def exit_app(self):
         self.covers.stop()
         if self.youtube_session:self.youtube_session.close()
-        self.finish_transition();self.store.set('volume',self.volume.value()/100);self.store.set('width',round(self.width()/self.ui_scale));self.store.set('panel_height',round(self.saved_height/self.ui_scale));self.store.set('compact_height',round(self.compact_height/self.ui_scale))
+        self.finish_transition();self.store.set('layout_version',LAYOUT_VERSION);self.store.set('volume',self.volume.value()/100);self.store.set('width',round(self.width()/self.ui_scale));self.store.set('panel_height',round(self.saved_height/self.ui_scale));self.store.set('compact_height',round(self.compact_height/self.ui_scale))
         self.store.set('last_queue',[t.to_dict() for t in self.queue.tracks]);self.engine.stop();self.tray.hide();self.hide();self.deleteLater();QTimer.singleShot(250,QApplication.quit)
     def closeEvent(self,e):e.ignore();self.hide_player()
     def showEvent(self,e):super().showEvent(e);self.tick.start();self.visual_state();self.engine.set_video_visible(not self.isMinimized())
@@ -586,13 +596,16 @@ def main():
                 original=json.dumps(test.config,sort_keys=True);editor=SettingsEditor(test);editor.show();presets=True;styles=True
                 for i,theme in enumerate(test.themes):
                     editor.themes.setCurrentIndex(i);editor.apply_preview();wait(80);presets=presets and editor.preview.theme['id']==theme['id'];editor.grab().save(str(folder/('theme-'+theme['id']+'.png')))
-                colors=dict(zip(COLOR_LABELS,('#211A23','#342635','#FFF4EB','#C7AEBE','#F6AF70','#7E546C')))
+                colors=dict(zip(COLOR_LABELS,('#211A23','#342635','#FFF4EB','#C7AEBE','#F6AF70','#7E546C','#BFA0FF')))
                 for key,value in colors.items():editor.set_color(key,value)
                 editor.visual.setChecked(True)
                 for key in STYLES:
                     editor.visual_style.setCurrentIndex(editor.visual_style.findData(key));editor.apply_preview();wait(100);styles=styles and editor.preview.spectrum.style_name==key and test.spectrum.style_name==key;editor.grab().save(str(folder/('spectrum-'+key+'.png')))
+                for key in ('bg','panel','accent','spectrum'):
+                    editor.gradient_checks[key].setChecked(True);editor.set_gradient_end(key,'#689CD3');editor.gradient_directions[key].setCurrentIndex(0)
+                editor.apply_preview();wait(80);gradient=all(test.theme[key+'_end']=='#689CD3' for key in ('bg','panel','accent','spectrum')) and test.spectrum.color!=test.theme['accent'];editor.grab().save(str(folder/'custom-gradients.png'))
                 custom=all(test.theme[key]==value and editor.preview.theme[key]==value for key,value in colors.items());editor.reject();stopped=not editor.preview.timer.isActive();editor.deleteLater()
-                result['appearance_customization']={'preset_previews':presets,'custom_colors_live':custom,'four_spectrum_styles':styles,'cancel_restored':json.dumps(test.config,sort_keys=True)==original,'preview_timer_stopped':stopped}
+                result['appearance_customization']={'preset_previews':presets,'custom_colors_live':custom,'independent_wave_and_gradients':gradient,'five_spectrum_styles':styles,'cancel_restored':json.dumps(test.config,sort_keys=True)==original,'preview_timer_stopped':stopped}
             if '--test-video' in sys.argv:
                 video_file=Path(sys.argv[sys.argv.index('--test-video')+1]).resolve();test.engine.play_track(Track('Local video self-test',str(video_file)));wait(700);test.engine.player.pause();test.engine.seek_to(1500);wait(70);video_source=test.engine.player.source();position=test.engine.player.position();test.expand('영상');test.finish_transition();wait(800)
                 result['local_video']={'frame_rendered':not test.video_widget.image.isNull(),'paused_position_preserved':abs(test.engine.player.position()-position)<80,'audio_source_unchanged':test.engine.player.source()==video_source,'companion_muted':test.engine.video_audio.isMuted() if test.engine.video_player else False}
@@ -608,6 +621,12 @@ def main():
                 start=time.monotonic();test.load_youtube_page(0);back_ready=await_search();back_seconds=time.monotonic()-start
                 result['youtube_search']={'first_page_seconds':round(first_seconds,3),'next_page_seconds':round(next_seconds,3),'cached_previous_seconds':round(back_seconds,3),'first_page_count':len(first),'next_page_count':len(second),
                     'passed':first_ready and next_ready and back_ready and len(first)==10 and len(second)==10 and len({t.key for t in first+second})==20 and test.youtube_results==first and test.youtube_page==0}
+            if '--test-playlist' in sys.argv:
+                uri=sys.argv[sys.argv.index('--test-playlist')+1];test.change_source('local');test.search_box.setText(uri);before_source=test.engine.player.source();start=time.monotonic();test.search();deadline=time.monotonic()+40
+                while test.youtube_loading and time.monotonic()<deadline:wait(50)
+                tracks=list(test.youtube_results);before_count=len(test.queue.tracks);test.add_all_button.click();queued=test.queue.tracks[before_count:]
+                result['youtube_playlist']={'recognized':bool(test.youtube_session and test.youtube_session.playlist_id),'source_switched':test.source=='youtube','tracks_found':len(tracks),'seconds':round(time.monotonic()-start,3),'all_queued':len(queued)==len(tracks),'order_preserved':queued==tracks,'audio_source_unchanged':test.engine.player.source()==before_source,
+                    'passed':not test.youtube_loading and bool(tracks) and queued==tracks and test.source=='youtube' and test.engine.player.source()==before_source}
             if '--test-youtube' in sys.argv:
                 uri=sys.argv[sys.argv.index('--test-youtube')+1];track=Track('YouTube recovery self-test',uri,'youtube');test.queue.replace([track]);test.queue.select(0);test.engine.play_track(track,position=50000)
                 def ready_after(position):
@@ -620,7 +639,7 @@ def main():
                 test.engine.recover_audio();recovered=ready_after(checkpoint)
                 result['youtube_recovery']={'initial_cached_audio_played':ready and local,'resumed_at_saved_position':recovered,'recovery_uses_cached_file':test.engine.player.source().isLocalFile(),'no_media_error':test.engine.player.error()==QMediaPlayer.NoError}
             result['passed']=result['position_ms']>500 and result['spectrum_frames']>1 and result['font_family']=='NanumSquareRound' and result['bold_available'] and all(result[key] for key in ('appearance_live_preview','appearance_cancel_restored','expanded_background_preview','appearance_source_unchanged'))
-            result['passed']=result['passed'] and result['asynchronous_album_cover'] and all(result.get('local_video',{}).values()) and all(result.get('youtube_recovery',{}).values()) and result.get('youtube_search',{}).get('passed',True) and all(result.get('appearance_customization',{}).values())
+            result['passed']=result['passed'] and result['asynchronous_album_cover'] and all(result.get('local_video',{}).values()) and all(result.get('youtube_recovery',{}).values()) and result.get('youtube_search',{}).get('passed',True) and all(result.get('appearance_customization',{}).values()) and result.get('youtube_playlist',{}).get('passed',True)
             (folder/'report.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
             test.grab().save(str(folder/'screen.png'));test.engine.stop();test.hide();test.deleteLater();QTimer.singleShot(250,app.quit)
         QTimer.singleShot(1300,finish_test)

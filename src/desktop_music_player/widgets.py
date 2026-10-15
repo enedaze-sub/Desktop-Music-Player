@@ -3,6 +3,8 @@ import math,sys,time
 from pathlib import Path
 from .core import app_root
 from .icons import icon
+from .layout import COMPACT_HEIGHT
+from .palettes import theme_brush,brush
 from PySide6.QtCore import Qt,QRectF,QRect,QTimer,Slot,QObject,QEvent
 from PySide6.QtGui import QColor,QPainter,QPainterPath,QPen,QPixmap,QLinearGradient,QConicalGradient,QImage,QImageReader,QTextLayout,QTextOption
 from PySide6.QtMultimedia import QVideoFrame
@@ -27,7 +29,7 @@ def install_button_focus_filter(app):
 
 class Surface(QWidget):
     def __init__(self,parent=None):
-        super().__init__(parent);self.theme={};self.image=QPixmap();self.original_size=None;self.image_path=None;self.background={};self.cached_background=QPixmap();self.expanded_view=False;self.compact_reference=252
+        super().__init__(parent);self.theme={};self.image=QPixmap();self.original_size=None;self.image_path=None;self.background={};self.cached_background=QPixmap();self.expanded_view=False;self.compact_reference=COMPACT_HEIGHT
     def set_theme(self,theme):
         if self.theme==theme:return
         self.theme=dict(theme);self.rebuild_background();self.update()
@@ -65,12 +67,15 @@ class Surface(QWidget):
         rh=self.compact_reference if expanded_mode=='header' else self.height()
         # Changes to an inactive expanded profile do not repaint the real compact window.
         transform=tuple(values.get(key,default) for key,default in [('background_fit','cover'),('background_zoom',1),('background_x',0),('background_y',0),('background_opacity',.3),('background_tint',0)]) if not self.image.isNull() else ()
-        key=(self.width(),self.height(),self.devicePixelRatioF(),self.theme.get('id'),self.theme.get('bg'),self.theme.get('border'),self.image.cacheKey(),rh if transform else None,transform)
+        key=(self.width(),self.height(),self.devicePixelRatioF(),self.theme.get('id'),self.theme.get('bg'),self.theme.get('bg_end'),self.theme.get('bg_direction'),self.theme.get('border'),self.image.cacheKey(),rh if transform else None,transform)
         if getattr(self,'_background_key',None)==key and not self.cached_background.isNull():return
         self._background_key=key
         dpr=self.devicePixelRatioF();pix=QPixmap(round(self.width()*dpr),round(self.height()*dpr));pix.setDevicePixelRatio(dpr);pix.fill(Qt.transparent)
         p=QPainter(pix);p.setRenderHint(QPainter.Antialiasing);rect=QRectF(self.rect()).adjusted(.5,.5,-.5,-.5);path=QPainterPath();path.addRoundedRect(rect,16,16);p.setClipPath(path)
-        bg=QColor(self.theme.get('bg','#D9DFE6'));grad=QLinearGradient(0,0,0,self.height());grad.setColorAt(0,bg.lighter(107));grad.setColorAt(1,bg.darker(104));p.fillRect(self.rect(),grad)
+        bg=QColor(self.theme.get('bg','#D9DFE6'))
+        if self.theme.get('bg_end') or self.theme.get('id')=='custom':p.fillRect(self.rect(),theme_brush(self.theme,'bg',QRectF(self.rect())))
+        else:
+            grad=QLinearGradient(0,0,0,self.height());grad.setColorAt(0,bg.lighter(107));grad.setColorAt(1,bg.darker(104));p.fillRect(self.rect(),grad)
         if self.theme.get('id')=='silver_blue':
             p.setPen(QColor(255,255,255,15))
             for y in range(0,min(200,self.height()),3):p.drawLine(0,y,self.width(),y)
@@ -103,8 +108,11 @@ class Artwork(QWidget):
         p.drawArc(QRectF(4,4,124,124),90*16,-int(self.ratio*360*16))
 class Spectrum(QWidget):
     def __init__(self,parent=None):
-        super().__init__(parent);self.setFixedHeight(40);self.levels=[0.]*24;self.color='#6EF0CF';self.background='#07132A';self.active=False;self.style_name='bars'
+        super().__init__(parent);self.setFixedHeight(40);self.levels=[0.]*24;self.color='#6EF0CF';self.color_end='';self.direction='vertical';self.background='#07132A';self.active=False;self.style_name='bars'
         self.timer=QTimer(self);self.timer.setInterval(50);self.timer.timeout.connect(self.tick);self.targets=[0.]*24
+    def set_colors(self,color,end='',direction='vertical'):
+        value=(color,end,direction)
+        if value!=(self.color,self.color_end,self.direction):self.color,self.color_end,self.direction=value;self.update()
     def set_style(self,value):
         from .palettes import STYLES
         value=value if value in STYLES else 'bars'
@@ -123,17 +131,26 @@ class Spectrum(QWidget):
         return QRectF((self.width()-width)/2,2,width,max(1,self.height()-4))
     def paintEvent(self,event):
         p=QPainter(self);p.setRenderHint(QPainter.Antialiasing);p.setPen(Qt.NoPen);r=self.plot_rect();step=r.width()/24
-        color=QColor(self.color);bg=QColor(self.background)
-        # Retain the chosen color in settings; improve only the drawn ink if needed.
-        if abs(color.lightnessF()-bg.lightnessF())<.22:color=color.lighter(170) if bg.lightnessF()<.5 else color.darker(170)
-        grad=QLinearGradient(0,r.top(),0,r.bottom());grad.setColorAt(0,color.lighter(145));grad.setColorAt(1,color);p.setBrush(grad)
+        color=QColor(self.color);grad=brush(r,self.color,self.color_end,self.direction);p.setBrush(grad)
+        if self.style_name=='glow':
+            scale=float(self.property('uiScale') or 1);count=min(64,max(24,int(r.width()/max(2,7*scale))));needles=[];spacing=r.width()/count
+            for i in range(count):
+                pos=i*23/max(1,count-1);index=min(22,int(pos));fraction=pos-index;level=self.levels[index]*(1-fraction)+self.levels[index+1]*fraction
+                height=max(.7,level*r.height());needles.append((r.left()+(i+.5)*spacing,r.center().y()-height/2,height))
+            # Small translucent rectangles form the halo; no blur or stroked
+            # gradient paths. Keep cost bounded even when the window is wide.
+            p.setRenderHint(QPainter.Antialiasing,False)
+            for width,alpha in ((4,.16),(2,.4),(1,1)):
+                width=max(.65,width*scale);p.setOpacity(alpha)
+                for x,y,height in needles:p.fillRect(QRectF(x-width/2,y,width,height),grad)
+            return
         gap=max(1,min(4,step*.22));base=max(1,r.height()*.035)
         if self.style_name=='line':
             points=[(r.left()+step*(i+.5),r.bottom()-max(base,level*r.height())) for i,level in enumerate(self.levels)]
             path=QPainterPath();path.moveTo(*points[0])
             for x,y in points[1:]:path.lineTo(x,y)
             fill=QPainterPath(path);fill.lineTo(points[-1][0],r.bottom());fill.lineTo(points[0][0],r.bottom());fill.closeSubpath()
-            shade=QColor(color);shade.setAlpha(75);p.fillPath(fill,shade);p.setBrush(Qt.NoBrush);p.setPen(QPen(color,max(1.5,r.height()*.065),Qt.SolidLine,Qt.RoundCap,Qt.RoundJoin));p.drawPath(path);return
+            p.setOpacity(.28);p.fillPath(fill,grad);p.setOpacity(1);p.setBrush(Qt.NoBrush);p.setPen(QPen(grad,max(1.5,r.height()*.065),Qt.SolidLine,Qt.RoundCap,Qt.RoundJoin));p.drawPath(path);return
         for i,level in enumerate(self.levels):
             height=max(base,level*r.height());x=r.left()+i*step+gap/2;width=max(1,step-gap)
             if self.style_name=='mirror':p.drawRoundedRect(QRectF(x,r.center().y()-height/2,width,height),1.5,1.5)
@@ -197,7 +214,7 @@ class ElidedLabel(QLabel):
         p=QPainter(self);p.setPen(self.palette().windowText().color());p.setFont(self.font())
         text=self.text().replace('\n',' ');fm=p.fontMetrics();spacing=fm.lineSpacing()
         if self.lines==1:
-            p.drawText(self.rect(),Qt.AlignLeft|Qt.AlignVCenter,fm.elidedText(text,Qt.ElideRight,self.width()));return
+            p.drawText(self.rect(),self.alignment(),fm.elidedText(text,Qt.ElideRight,self.width()));return
         layout=QTextLayout(text,self.font());option=QTextOption();option.setWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere);layout.setTextOption(option)
         layout.beginLayout();lines=[]
         for _ in range(self.lines):

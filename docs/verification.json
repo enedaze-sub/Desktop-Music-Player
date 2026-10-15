@@ -1,6 +1,6 @@
 {
   "date": "2026-10-15",
-  "unit_tests_passed": 84,
+  "unit_tests_passed": 92,
   "ui": {
     "font_family": "NanumSquareRound",
     "font_styles": [
@@ -14,7 +14,7 @@
     ],
     "screenshots": 10,
     "minimum_width_nav_fits": true,
-    "playback_position_ms": 1578,
+    "playback_position_ms": 1486,
     "spectrum_frames": 18,
     "hidden_visualizer_stopped": true
   },
@@ -32,7 +32,8 @@
     "appearance_customization": {
       "preset_previews": true,
       "custom_colors_live": true,
-      "four_spectrum_styles": true,
+      "independent_wave_and_gradients": true,
+      "five_spectrum_styles": true,
       "cancel_restored": true,
       "preview_timer_stopped": true
     },
@@ -44,15 +45,25 @@
       "decoder_released_when_closed": true
     },
     "youtube_search": {
-      "first_page_seconds": 1.187,
-      "next_page_seconds": 0.688,
-      "cached_previous_seconds": 0.062,
+      "first_page_seconds": 1.297,
+      "next_page_seconds": 0.812,
+      "cached_previous_seconds": 0.063,
       "first_page_count": 10,
       "next_page_count": 10,
       "passed": true
     },
+    "youtube_playlist": {
+      "recognized": true,
+      "source_switched": true,
+      "tracks_found": 20,
+      "seconds": 0.703,
+      "all_queued": true,
+      "order_preserved": true,
+      "audio_source_unchanged": true,
+      "passed": true
+    },
     "passed": true,
-    "tested_version": "0.1.9"
+    "tested_version": "0.2.0"
   },
   "youtube_video": [
     {
@@ -143,7 +154,7 @@
     ],
     "alpha_zero_click_through_prevented": true
   },
-  "appearance_iteration": "0.1.9",
+  "appearance_iteration": "0.2.0",
   "appearance_editor": {
     "settings_size": [
       544,
@@ -396,20 +407,24 @@
   "custom_appearance": {
     "spectrum_paint": {
       "bars": {
-        "median_ms": 0.093,
-        "p95_ms": 0.155
+        "median_ms": 0.109,
+        "p95_ms": 0.141
       },
       "led": {
-        "median_ms": 0.175,
-        "p95_ms": 0.349
+        "median_ms": 0.193,
+        "p95_ms": 0.314
       },
       "mirror": {
-        "median_ms": 0.099,
-        "p95_ms": 0.164
+        "median_ms": 0.117,
+        "p95_ms": 0.18
       },
       "line": {
-        "median_ms": 0.372,
-        "p95_ms": 0.48
+        "median_ms": 0.411,
+        "p95_ms": 0.577
+      },
+      "glow": {
+        "median_ms": 0.369,
+        "p95_ms": 0.716
       }
     },
     "settings_preview_in_dialog": true,
@@ -417,21 +432,32 @@
       "bars",
       "led",
       "mirror",
-      "line"
+      "line",
+      "glow"
     ],
     "fft_analysis": {
-      "median_ms": 0.073,
-      "p95_ms": 0.087
+      "median_ms": 0.072,
+      "p95_ms": 0.137
     },
     "render_rate_limit_fps": 20,
-    "six_colors_persist_and_cancel": true,
-    "hex_validation": true,
-    "five_theme_previews": true,
-    "native_theme_id_preserved_on_rename": true,
-    "visualizer_independent_of_theme": true,
-    "minimum_spectrum_height_px": 20,
-    "base_spectrum_height_px": 40,
-    "maximum_spectrum_plot_width_at_100_percent": 620,
+    "seven_colors_persist_and_cancel": true,
+    "independent_spectrum_color": true,
+    "gradient_targets": [
+      "bg",
+      "panel",
+      "accent",
+      "spectrum"
+    ],
+    "gradient_directions": [
+      "horizontal",
+      "vertical",
+      "diagonal"
+    ],
+    "gradient_cache_endpoint_invalidation": true,
+    "minimum_compact_height_at_100_percent": 224,
+    "previous_minimum_height_migrates": true,
+    "custom_height_preserved": true,
+    "status_centered_in_title_bar": true,
     "width_and_scale_layout_tested": {
       "widths": [
         560,
@@ -445,5 +471,14 @@
         1.5
       ]
     }
+  },
+  "youtube_playlist": {
+    "recognized": true,
+    "auto_switched_from_local": true,
+    "tracks_found": 20,
+    "seconds": 0.75,
+    "all_queued": true,
+    "queue_count": 20,
+    "audio_unchanged": true
   }
 }

@@ -98,6 +98,11 @@ class Queue:
 
 def youtube_input(value):
     value=value.strip()
+    linked=re.fullmatch(r'\[[^\]]*\]\((https?://[^\s)]+)\)',value)
+    if linked:value=linked.group(1)
+    if value.startswith('<') and value.endswith('>'):value=value[1:-1].strip()
+    if re.match(r'(?i)(?:(?:www\.|m\.|music\.)?youtube\.com/|(?:www\.)?youtu\.be/)',value):value='https://'+value
+    if value.startswith(('https://','http://')):value=value.replace('\\&','&').replace('&amp;','&')
     if not value or len(value)>500:raise ValueError('검색어나 주소를 500자 이내로 입력해 주세요.')
     parsed=urlparse(value)
     if parsed.scheme or value.startswith('//'):
@@ -110,4 +115,5 @@ def playlist_id(value):
     query=youtube_input(value)
     if query.startswith('ytsearch'):return None
     values=parse_qs(urlparse(query).query)
-    return values.get('list',[None])[0]
+    value=values.get('list',[None])[0]
+    return value if isinstance(value,str) and re.fullmatch('[A-Za-z0-9_-]{2,128}',value) else None

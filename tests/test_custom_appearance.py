@@ -22,7 +22,7 @@ class CustomAppearanceTests(unittest.TestCase):
   d=SettingsEditor(self.w);d.show();d.themes.setCurrentIndex(next(i for i,t in enumerate(self.w.themes) if t['id']=='custom'));d.visual.setChecked(True);return d
  def test_six_colors_preview_persist_and_cancel_without_interrupting_audio(self):
   w=self.w;original=deepcopy(w.config);saved=w.store.config();d=self.editor()
-  colors=dict(zip(COLOR_LABELS,('#211A23','#342635','#FFF4EB','#C7AEBE','#F6AF70','#7E546C')))
+  colors=dict(zip(COLOR_LABELS,('#211A23','#342635','#FFF4EB','#C7AEBE','#F6AF70','#7E546C','#BFA0FF')))
   with patch.object(w.engine.player,'setSource') as source,patch.object(w.engine.player,'stop') as stop:
    for key,value in colors.items():self.assertTrue(d.set_color(key,value))
    for style in STYLES:
@@ -59,7 +59,7 @@ class CustomAppearanceTests(unittest.TestCase):
   s=Spectrum();s.resize(510,40);s.show();pixels=[]
   for style in STYLES:
    s.set_style(style);s.levels=[.12+.82*abs(math.sin(i*.3)) for i in range(24)];pixels.append(bytes(s.grab().toImage().constBits()))
-  self.assertEqual(len(set(pixels)),4);s.set_active(True);s.accept([1.]*24);s.tick();s.set_active(False);self.assertEqual(s.levels,[0.]*24);self.assertEqual(s.targets,[0.]*24);self.assertFalse(s.timer.isActive());s.hide();s.deleteLater()
+  self.assertEqual(len(set(pixels)),5);s.set_active(True);s.accept([1.]*24);s.tick();s.set_active(False);self.assertEqual(s.levels,[0.]*24);self.assertEqual(s.targets,[0.]*24);self.assertFalse(s.timer.isActive());s.hide();s.deleteLater()
 class SpectrumAnalysisTests(unittest.TestCase):
  def test_log_bands_detect_bass_and_treble_and_raise_quiet_visible_levels(self):
   rate=48000;t=np.arange(2048)/rate;analyzer=SpectrumAnalyzer()

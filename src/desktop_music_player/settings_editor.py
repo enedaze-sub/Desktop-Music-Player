@@ -1,22 +1,23 @@
 """Live appearance drafts; only Apply commits to the persistent store."""
 from copy import deepcopy
 import re
-from PySide6.QtCore import Qt,QTimer,QRegularExpression
+from PySide6.QtCore import Qt,QTimer,QRegularExpression,QSignalBlocker
 from PySide6.QtGui import QColor,QPixmap,QIcon,QRegularExpressionValidator
 from PySide6.QtWidgets import QDialog,QVBoxLayout,QFormLayout,QHBoxLayout,QWidget,QLabel,QComboBox,QSlider,QSpinBox,QCheckBox,QPushButton,QDialogButtonBox,QColorDialog,QScrollArea,QFrame,QGridLayout,QLineEdit
 from .storage import BACKGROUND_DEFAULTS
 from .scaling import scale_tree,stylesheet
-from .palettes import COLOR_LABELS,STYLES,palette
+from .palettes import COLOR_LABELS,STYLES,palette,GRADIENT_TARGETS,DIRECTIONS,gradient_settings
+from .layout import COMPACT_HEIGHT,EXPANDED_BASE
 from .appearance_preview import AppearancePreview
 
 class SettingsEditor(QDialog):
-    KEYS=('theme','opacity','ui_scale','visualizer','width','compact_height','panel_height','accent','custom_theme','visualizer_style',*BACKGROUND_DEFAULTS)
+    KEYS=('theme','opacity','ui_scale','visualizer','width','compact_height','panel_height','accent','custom_theme','custom_gradients','visualizer_style','layout_version',*BACKGROUND_DEFAULTS)
     def __init__(self,owner):
         super().__init__(owner);self.owner=owner;self.setWindowTitle('플레이어 꾸미기')
         owner.finish_transition();self.original={key:deepcopy(owner.config[key]) for key in self.KEYS}
         self.original_size=owner.size();self.original_compact=owner.compact_height;self.original_panel=owner.saved_height;self.original_opacity=owner.windowOpacity()
         self.dialog_scale=max(.8,min(1.2,owner.ui_scale));self.closed=False
-        fallback=next(t for t in owner.themes if t['id']=='custom');self.custom_draft=palette(owner.config.get('custom_theme'),fallback)
+        fallback=next(t for t in owner.themes if t['id']=='custom');self.custom_draft=palette(owner.config.get('custom_theme'),fallback);self.gradient_draft=gradient_settings(owner.config.get('custom_gradients'),self.custom_draft)
         root=QVBoxLayout(self);root.setContentsMargins(18,16,18,14);root.setSpacing(14)
         note=QLabel('테마와 파형을 여기에서 미리 확인하세요. 실제 플레이어에도 바로 반영됩니다.\n적용하면 저장하고, 취소하면 원래 모습으로 돌아갑니다.');note.setWordWrap(True);note.setObjectName('muted');root.addWidget(note)
         self.themes=QComboBox();self.themes.addItems([t['name'] for t in owner.themes]);self.themes.setCurrentIndex(next((n for n,t in enumerate(owner.themes) if t['id']==owner.config['theme']),0))
@@ -37,11 +38,20 @@ class SettingsEditor(QDialog):
             button=QPushButton(label);button.setCursor(Qt.PointingHandCursor);button.clicked.connect(lambda checked=False,k=key:self.choose_color(k));button.setAccessibleName(label+' 색 선택');self.color_buttons[key]=button
             edit=QLineEdit(self.custom_draft[key]);edit.setMaximumWidth(100);edit.setMaxLength(7);edit.setValidator(QRegularExpressionValidator(QRegularExpression('#[0-9A-Fa-f]{6}'),edit));edit.setAccessibleName(label+' HEX 색상');edit.textEdited.connect(lambda text,k=key:self.set_color(k,text) if len(text)==7 else None);edit.editingFinished.connect(lambda k=key:self.edit_color(k));self.color_fields[key]=edit
             row,col=divmod(n,2);grid.addWidget(button,row,col*2);grid.addWidget(edit,row,col*2+1)
+        gradient_note=QLabel('그라디언트 · 시작 색은 위에서, 끝 색과 방향은 아래에서 선택');gradient_note.setObjectName('muted');gradient_note.setWordWrap(True);custom_layout.addWidget(gradient_note)
+        gradient_grid=QGridLayout();gradient_grid.setHorizontalSpacing(8);gradient_grid.setVerticalSpacing(5);custom_layout.addLayout(gradient_grid);self.gradient_checks={};self.gradient_buttons={};self.gradient_directions={}
+        for n,(key,label) in enumerate(GRADIENT_TARGETS.items()):
+            check=QCheckBox(label);check.setChecked(self.gradient_draft[key]['enabled']);check.toggled.connect(lambda enabled,k=key:self.toggle_gradient(k,enabled));self.gradient_checks[key]=check
+            button=QPushButton();button.setCursor(Qt.PointingHandCursor);button.setAccessibleName(label+' 그라디언트 끝 색');button.clicked.connect(lambda checked=False,k=key:self.choose_gradient_end(k));self.gradient_buttons[key]=button
+            direction=QComboBox()
+            for value,name in DIRECTIONS.items():direction.addItem(name,value)
+            direction.setCurrentIndex(direction.findData(self.gradient_draft[key]['direction']));direction.currentIndexChanged.connect(lambda index,k=key:self.change_gradient_direction(k));self.gradient_directions[key]=direction
+            gradient_grid.addWidget(check,n,0);gradient_grid.addWidget(button,n,1);gradient_grid.addWidget(direction,n,2)
         form.addRow(self.custom_panel);self.refresh_colors();self.custom_panel.setVisible(owner.config['theme']=='custom')
         self.scale=self.percent(form,'전체 UI 배율 · 50~150%',50,150,round(owner.ui_scale*100),5)
         self.opacity=self.percent(form,'창 투명도 · 0~40%',0,40,round((1-owner.config['opacity'])*100))
         self.width_control=self.number(form,'플레이어 폭',560,1600,round(owner.width()/owner.ui_scale))
-        self.compact=self.number(form,'접힌 창 높이',252,900,round(owner.compact_height/owner.ui_scale))
+        self.compact=self.number(form,'접힌 창 높이',COMPACT_HEIGHT,900,round(owner.compact_height/owner.ui_scale))
         self.panel=self.number(form,'펼친 목록 높이',240,900,round(owner.saved_height/owner.ui_scale))
         hint=QLabel('폭과 높이는 UI 배율 100% 기준입니다. 기본 UI 배율은 80%예요.');hint.setWordWrap(True);hint.setObjectName('muted');body_layout.addWidget(hint)
         row=QHBoxLayout()
@@ -78,11 +88,11 @@ class SettingsEditor(QDialog):
         if not self.closed and not self.timer.isActive():self.timer.start()
     def apply_preview(self):
         if self.closed:return
-        owner=self.owner;owner.config.update(theme=owner.themes[self.themes.currentIndex()]['id'],opacity=1-self.opacity.value()/100,visualizer=self.visual.isChecked(),custom_theme=deepcopy(self.custom_draft),visualizer_style=self.visual_style.currentData())
+        owner=self.owner;owner.config.update(theme=owner.themes[self.themes.currentIndex()]['id'],opacity=1-self.opacity.value()/100,visualizer=self.visual.isChecked(),custom_theme=deepcopy(self.custom_draft),custom_gradients=deepcopy(self.gradient_draft),visualizer_style=self.visual_style.currentData())
         factor=self.scale.value()/100
         if abs(owner.ui_scale-factor)>.001:owner.set_ui_scale(factor,persist=False)
         owner._transitioning=True;owner.compact_height=owner.px(self.compact.value());owner.saved_height=owner.px(self.panel.value())
-        owner.resize(owner.px(self.width_control.value()),max(owner.px(270)+owner.saved_height,owner.compact_height) if owner.expanded else owner.compact_height);owner._transitioning=False
+        owner.resize(owner.px(self.width_control.value()),max(owner.px(EXPANDED_BASE)+owner.saved_height,owner.compact_height) if owner.expanded else owner.compact_height);owner._transitioning=False
         owner.config.update(width=self.width_control.value(),compact_height=self.compact.value(),panel_height=self.panel.value())
         owner.setWindowOpacity(owner.config['opacity']);owner.apply_theme();owner.layout_surface()
         self.preview.set_appearance(owner.theme,self.visual_style.currentData(),self.visual.isChecked())
@@ -99,6 +109,22 @@ class SettingsEditor(QDialog):
     def refresh_colors(self):
         for key,color in self.custom_draft.items():
             pixmap=QPixmap(18,18);pixmap.fill(QColor(color));self.color_buttons[key].setIcon(QIcon(pixmap));self.color_fields[key].setText(color)
+        self.refresh_gradients()
+    def refresh_gradients(self):
+        for key,item in self.gradient_draft.items():
+            with QSignalBlocker(self.gradient_checks[key]):self.gradient_checks[key].setChecked(item['enabled'])
+            with QSignalBlocker(self.gradient_directions[key]):self.gradient_directions[key].setCurrentIndex(self.gradient_directions[key].findData(item['direction']))
+            pixmap=QPixmap(18,18);pixmap.fill(QColor(item['end']));self.gradient_buttons[key].setIcon(QIcon(pixmap));self.gradient_buttons[key].setText(item['end']);self.gradient_buttons[key].setEnabled(item['enabled']);self.gradient_directions[key].setEnabled(item['enabled'])
+    def toggle_gradient(self,key,enabled):
+        self.gradient_draft[key]['enabled']=enabled;self.refresh_gradients();self.schedule_preview()
+    def set_gradient_end(self,key,value):
+        if key not in GRADIENT_TARGETS or not isinstance(value,str) or not re.fullmatch('#[0-9A-Fa-f]{6}',value):return False
+        self.gradient_draft[key]['end']=value.upper();self.refresh_gradients();self.schedule_preview();return True
+    def choose_gradient_end(self,key):
+        color=QColorDialog.getColor(QColor(self.gradient_draft[key]['end']),self,GRADIENT_TARGETS[key]+' 그라디언트 끝 색')
+        if color.isValid():self.set_gradient_end(key,color.name())
+    def change_gradient_direction(self,key):
+        self.gradient_draft[key]['direction']=self.gradient_directions[key].currentData();self.schedule_preview()
     def set_color(self,key,value):
         if key not in COLOR_LABELS or not isinstance(value,str) or not re.fullmatch('#[0-9A-Fa-f]{6}',value):return False
         self.custom_draft[key]=value.upper();self.refresh_colors();self.schedule_preview();return True
@@ -108,7 +134,9 @@ class SettingsEditor(QDialog):
     def edit_color(self,key):
         if not self.set_color(key,self.color_fields[key].text()):self.color_fields[key].setText(self.custom_draft[key])
     def copy_preset(self):
-        preset=[t for t in self.owner.themes if t['id']!='custom'][self.seed_theme.currentIndex()];self.custom_draft=palette(preset,preset);self.refresh_colors();self.schedule_preview()
+        preset=[t for t in self.owner.themes if t['id']!='custom'][self.seed_theme.currentIndex()];self.custom_draft=palette(preset,preset);self.gradient_draft=gradient_settings({},self.custom_draft)
+        for key,check in self.gradient_checks.items():check.setChecked(False)
+        self.refresh_colors();self.schedule_preview()
     def accept(self):
         if self.closed:return
         self.timer.stop()

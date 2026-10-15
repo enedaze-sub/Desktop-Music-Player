@@ -18,14 +18,19 @@ def options():
     return {'quiet':True,'no_warnings':True,'logger':Quiet(),'socket_timeout':15,'retries':1,'extractor_retries':1,'cachedir':False,
             'js_runtimes':{'deno':{'path':deno}} if deno else {}}
 
-def search(value):
-    query=youtube_input(value); pid=playlist_id(value)
-    opts=options();opts.update({'extract_flat':True,'noplaylist':not bool(pid),'playlistend':300})
+def search(value,cancelled=None):
+    query=youtube_input(value);pid=playlist_id(value);opts=options();opts.update(extract_flat=True,noplaylist=not bool(pid))
     if pid:query='https://www.youtube.com/playlist?list='+pid
-    with yt_dlp.YoutubeDL(opts) as ydl:info=ydl.extract_info(query,download=False)
-    if not info:return []
-    entries=info.get('entries') if 'entries' in info else [info]
-    return [track for entry in entries or [] if (track:=entry_track(entry,info.get('title','') if pid else ''))]
+    tracks=[]
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info=ydl.extract_info(query,download=False,process=not bool(pid))
+        if not info:return []
+        entries=info.get('entries') if 'entries' in info else [info]
+        for entry in entries or []:
+            if cancelled is not None and cancelled.is_set():raise ValueError('취소된 검색입니다.')
+            track=entry_track(entry,info.get('title','') if pid else '')
+            if track:tracks.append(track)
+    return tracks
 
 def entry_track(entry,album=''):
     if not entry or entry.get('is_live') or entry.get('title') in {'[Deleted video]','[Private video]'}:return None
@@ -37,7 +42,7 @@ class SearchSession:
     """Consume YouTube continuation lazily; keep visited pages in memory only."""
     PAGE_SIZE=10
     def __init__(self,value):
-        self.query=youtube_input(value);self.value=value.strip();self.paged=self.query.startswith('ytsearch10:')
+        self.query=youtube_input(value);self.value=value.strip();self.playlist_id=playlist_id(value);self.paged=self.query.startswith('ytsearch10:')
         self._lock=Lock();self._cancelled=Event();self._iterator=None;self._tracks=[];self._seen=set();self._exhausted=False
     def _iter_tracks(self):
         opts=options();opts.update(extract_flat=True,lazy_playlist=True,noplaylist=True)
@@ -65,7 +70,7 @@ class SearchSession:
             try:
                 if self._cancelled.is_set():raise ValueError('취소된 검색입니다.')
                 if not self.paged:
-                    if not self._exhausted:self._tracks=search(self.value);self._exhausted=True
+                    if not self._exhausted:self._tracks=search(self.value,self._cancelled);self._exhausted=True
                     return {'tracks':list(self._tracks),'page':0,'has_more':False}
                 end=(page+1)*self.PAGE_SIZE
                 while len(self._tracks)<=end and not self._exhausted:

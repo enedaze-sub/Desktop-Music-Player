@@ -6,12 +6,12 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFontDatabase,QFontInfo
 from PySide6.QtCore import QTimer
 from PySide6.QtTest import QTest
-from desktop_music_player.app import Window,configure_fonts
+from desktop_music_player.app import Window,configure_fonts,COMPACT_HEIGHT
 from desktop_music_player.storage import Store
 from desktop_music_player.core import Track
 ROOT=Path(__file__).resolve().parents[1];ART=ROOT/'artifacts';ART.mkdir(exist_ok=True)
 app=QApplication([]);app.setQuitOnLastWindowClosed(False);configure_fonts()
-window=Window(Store(ART/'smoke_state'),demo=True);window.resize(window.px(600),window.px(252))
+window=Window(Store(ART/'smoke_state'),demo=True);window.resize(window.px(600),window.px(COMPACT_HEIGHT))
 tracks=[Track('밤의 플레이리스트 · Night Walk',str(ART/'sample.wav'),artist='Desktop Music Player',album='로컬 보관함'),Track('빛나는 계절 · Spring Light','https://www.youtube.com/watch?v=dQw4w9WgXcQ','youtube','YouTube','함께 듣는 곡'),Track('오늘의 작은 쉼표','track3.mp3',album='로컬 음악')]
 window.set_library(tracks);window.queue.replace(tracks);window.queue.select(0);window.engine.track=tracks[0];window.update_transport();window.show();QTest.qWait(250)
 results={}

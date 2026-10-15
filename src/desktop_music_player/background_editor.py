@@ -3,6 +3,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt,QRect,QSize,QTimer,Signal,QSignalBlocker
 from PySide6.QtGui import QPixmap,QPainter,QColor,QImageReader
 from PySide6.QtWidgets import QWidget,QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QPushButton,QLabel,QSlider,QSpinBox,QDoubleSpinBox,QComboBox,QDialogButtonBox,QFileDialog,QMessageBox,QSizePolicy,QScrollArea,QFrame
+from .layout import COMPACT_HEIGHT,EXPANDED_BASE,MIN_PANEL_HEIGHT
 from .scaling import scale_tree,stylesheet
 from .storage import BACKGROUND_DEFAULTS
 from .widgets import ElidedLabel
@@ -126,7 +127,7 @@ class BackgroundEditor(QDialog):
         for name in ('title','artist','time','badge','status_label'):getattr(window,name).setText(getattr(self.owner,name).text())
         window.art.pixmap=self.owner.art.pixmap;window.art.ratio=self.owner.art.ratio
         window._transitioning=True;window.expanded=self.view.currentIndex()==1;window.compact_height=self.owner.compact_height;window.saved_height=self.owner.saved_height
-        window.setMinimumHeight(window.px(510 if window.expanded else 252));window.resize(self.owner.width(),max(window.px(270)+window.saved_height,window.compact_height) if window.expanded else window.compact_height)
+        window.setMinimumHeight(window.px(EXPANDED_BASE+MIN_PANEL_HEIGHT if window.expanded else COMPACT_HEIGHT));window.resize(self.owner.width(),max(window.px(EXPANDED_BASE)+window.saved_height,window.compact_height) if window.expanded else window.compact_height)
         window.drawer_viewport.setVisible(window.expanded);window._transitioning=False;window.sync_nav();window.layout_surface();window.apply_background(self.draft)
         self.preview.set_scene(window.grab())
     def dispose_preview(self):self.preview_window.hide();self.preview_window.deleteLater()

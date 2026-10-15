@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("Desktop Music Player")]
-[assembly: System.Reflection.AssemblyVersion("0.1.9.0")]
+[assembly: System.Reflection.AssemblyVersion("0.2.0.0")]
 class Launcher {
  [STAThread] static void Main() {
   string root=AppDomain.CurrentDomain.BaseDirectory;
