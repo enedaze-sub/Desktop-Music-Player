@@ -11,7 +11,7 @@ from desktop_music_player.storage import Store
 from desktop_music_player.settings_editor import SettingsEditor
 from desktop_music_player.palettes import STYLES
 from desktop_music_player.spectrum_analysis import SpectrumAnalyzer
-ROOT=Path(__file__).resolve().parents[1];ART=ROOT/'artifacts/appearance-v022';ART.mkdir(parents=True,exist_ok=True)
+ROOT=Path(__file__).resolve().parents[1];ART=ROOT/'artifacts/appearance-v023';ART.mkdir(parents=True,exist_ok=True)
 app=QApplication([]);app.setQuitOnLastWindowClosed(False);configure_fonts();report={}
 with tempfile.TemporaryDirectory() as state:
  w=Window(Store(state),demo=True);w.show();w.config['visualizer']=True;w.title.setText('오늘의 플레이리스트 · My Favorite Songs');w.tell('재생 준비 완료')

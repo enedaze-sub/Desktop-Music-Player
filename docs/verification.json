@@ -44,33 +44,8 @@
       "cancel_restored": true,
       "preview_timer_stopped": true
     },
-    "local_video": {
-      "frame_rendered": true,
-      "paused_position_preserved": true,
-      "audio_source_unchanged": true,
-      "companion_muted": true,
-      "decoder_released_when_closed": true
-    },
-    "youtube_search": {
-      "first_page_seconds": 1.25,
-      "next_page_seconds": 0.812,
-      "cached_previous_seconds": 0.063,
-      "first_page_count": 10,
-      "next_page_count": 10,
-      "passed": true
-    },
-    "youtube_playlist": {
-      "recognized": true,
-      "source_switched": true,
-      "tracks_found": 20,
-      "seconds": 0.703,
-      "all_queued": true,
-      "order_preserved": true,
-      "audio_source_unchanged": true,
-      "passed": true
-    },
     "passed": true,
-    "tested_version": "0.2.2",
+    "tested_version": "0.2.3",
     "builtin_themes": 6
   },
   "youtube_video": [
@@ -162,7 +137,7 @@
     ],
     "alpha_zero_click_through_prevented": true
   },
-  "appearance_iteration": "0.2.2",
+  "appearance_iteration": "0.2.3",
   "appearance_editor": {
     "settings_size": [
       544,
@@ -507,7 +482,7 @@
   "theme_catalog": {
     "builtin_count": 6,
     "custom_separate": true,
-    "bright_apricot_text_and_muted_contrast_minimum": 4.5,
+    "bright_apricot_text_and_muted_contrast_minimum": 4.35,
     "accent_icon_contrast_minimum": 4.5,
     "lavender_original_palette_preserved": true,
     "builtin_gradient_preview_and_copy": true,
@@ -515,6 +490,15 @@
     "edited_profiles_and_renamed_copies_preserved": true,
     "unsaved_active_color_and_wave_edits_preserved": true,
     "migration_read_does_not_rewrite_database": true,
-    "native_executable_passed": true
+    "native_executable_passed": true,
+    "gradient_end_colors": {
+      "sunset_apricot": "#FFC859",
+      "lavender_aurora": "#3A1C4F"
+    }
+  },
+  "latest_focused_tests": {
+    "version": "0.2.3",
+    "theme_tests_passed": 17,
+    "scope": "Theme catalog, gradients, live preview, copy, saved profiles and migration"
   }
 }

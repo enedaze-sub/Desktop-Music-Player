@@ -16,7 +16,7 @@
       "gradients": {
         "bg": {
           "enabled": true,
-          "end": "#FFE3CC",
+          "end": "#FFC859",
           "direction": "vertical"
         },
         "panel": {
@@ -54,7 +54,7 @@
       "gradients": {
         "bg": {
           "enabled": true,
-          "end": "#1B2F4F",
+          "end": "#3A1C4F",
           "direction": "diagonal"
         },
         "panel": {

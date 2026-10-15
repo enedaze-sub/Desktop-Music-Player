@@ -56,7 +56,7 @@
 
 `python tools/smoke_ui.py`는 테마 화면 캡처와 오디오·비주얼라이저 검사를 실행합니다. `python tools/measure_performance.py`는 성능·실제 유튜브 연결 결과를 `artifacts`에 저장합니다.
 
-검색 지연 회귀 검사는 실제 yt-dlp 추출기를 사용해 요청하지 않은 결과를 읽지 않는지 확인합니다. `python tools/smoke_appearance.py`는 테마·파형 화면과 FFT·그리기 비용을 `artifacts/appearance-v022`에 저장합니다. 빌드한 EXE의 `--self-test --test-appearance`로 커스텀 7색·그라디언트·기본 6종·별도 커스텀 테마·5종 파형·JSON 왕복·취소 복원을 검사합니다. 빌드한 EXE의 `--self-test --test-search`로 실제 유튜브 첫·다음·이전 페이지를 검사할 수 있습니다. `--self-test --test-playlist "공유 재생목록 URL"`로 자동 인식·전체 추가·원래 순서 보존을 검사합니다.
+검색 지연 회귀 검사는 실제 yt-dlp 추출기를 사용해 요청하지 않은 결과를 읽지 않는지 확인합니다. `python tools/smoke_appearance.py`는 테마·파형 화면과 FFT·그리기 비용을 `artifacts/appearance-v023`에 저장합니다. 빌드한 EXE의 `--self-test --test-appearance`로 커스텀 7색·그라디언트·기본 6종·별도 커스텀 테마·5종 파형·JSON 왕복·취소 복원을 검사합니다. 빌드한 EXE의 `--self-test --test-search`로 실제 유튜브 첫·다음·이전 페이지를 검사할 수 있습니다. `--self-test --test-playlist "공유 재생목록 URL"`로 자동 인식·전체 추가·원래 순서 보존을 검사합니다.
 
 먼저 `pip install -r requirements-dev.txt`로 개발 도구를 설치하세요.
 
