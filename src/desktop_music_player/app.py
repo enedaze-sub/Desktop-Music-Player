@@ -604,7 +604,15 @@ def main():
                 for key in ('bg','panel','accent','spectrum'):
                     editor.gradient_checks[key].setChecked(True);editor.set_gradient_end(key,'#689CD3');editor.gradient_directions[key].setCurrentIndex(0)
                 editor.apply_preview();wait(80);gradient=all(test.theme[key+'_end']=='#689CD3' for key in ('bg','panel','accent','spectrum')) and test.spectrum.color!=test.theme['accent'];editor.grab().save(str(folder/'custom-gradients.png'))
-                custom=all(test.theme[key]==value and editor.preview.theme[key]==value for key,value in colors.items());editor.reject();stopped=not editor.preview.timer.isActive();editor.deleteLater()
+                custom=all(test.theme[key]==value and editor.preview.theme[key]==value for key,value in colors.items())
+                from .theme_library import read_profiles
+                presets_ok=len(editor.library_draft)==2
+                for n,name in enumerate(list(editor.library_draft)):
+                    editor.themes.setCurrentIndex(editor.themes.findData('saved:'+name));editor.apply_preview();wait(80);presets_ok=presets_ok and test.config['custom_theme_name']==name;editor.grab().save(str(folder/('saved-theme-'+str(n)+'.png')))
+                editor.themes.setCurrentIndex(4);profile=editor.current_profile('Self-test theme');editor.library_controls.save_named('Self-test theme');editor.library_controls.export_file(folder/'theme-export.json');editor.library_controls.export_file(folder/'themes-export.json',True)
+                imported=editor.library_controls.import_file(folder/'theme-export.json');editor.apply_preview();wait(80)
+                result['theme_library']={'two_bundled_theme_previews':presets_ok,'single_export_roundtrip':read_profiles(folder/'theme-export.json')==[profile],'all_export_count_correct':len(read_profiles(folder/'themes-export.json'))==3,'duplicate_import_keeps_original':imported==['Self-test theme (2)'] and 'Self-test theme' in editor.library_draft,'import_colors_and_gradients_preserved':editor.custom_draft==profile['colors'] and editor.gradient_draft==profile['gradients']}
+                editor.reject();stopped=not editor.preview.timer.isActive();editor.deleteLater()
                 result['appearance_customization']={'preset_previews':presets,'custom_colors_live':custom,'independent_wave_and_gradients':gradient,'five_spectrum_styles':styles,'cancel_restored':json.dumps(test.config,sort_keys=True)==original,'preview_timer_stopped':stopped}
             if '--test-video' in sys.argv:
                 video_file=Path(sys.argv[sys.argv.index('--test-video')+1]).resolve();test.engine.play_track(Track('Local video self-test',str(video_file)));wait(700);test.engine.player.pause();test.engine.seek_to(1500);wait(70);video_source=test.engine.player.source();position=test.engine.player.position();test.expand('영상');test.finish_transition();wait(800)
@@ -639,7 +647,7 @@ def main():
                 test.engine.recover_audio();recovered=ready_after(checkpoint)
                 result['youtube_recovery']={'initial_cached_audio_played':ready and local,'resumed_at_saved_position':recovered,'recovery_uses_cached_file':test.engine.player.source().isLocalFile(),'no_media_error':test.engine.player.error()==QMediaPlayer.NoError}
             result['passed']=result['position_ms']>500 and result['spectrum_frames']>1 and result['font_family']=='NanumSquareRound' and result['bold_available'] and all(result[key] for key in ('appearance_live_preview','appearance_cancel_restored','expanded_background_preview','appearance_source_unchanged'))
-            result['passed']=result['passed'] and result['asynchronous_album_cover'] and all(result.get('local_video',{}).values()) and all(result.get('youtube_recovery',{}).values()) and result.get('youtube_search',{}).get('passed',True) and all(result.get('appearance_customization',{}).values()) and result.get('youtube_playlist',{}).get('passed',True)
+            result['passed']=result['passed'] and result['asynchronous_album_cover'] and all(result.get('local_video',{}).values()) and all(result.get('youtube_recovery',{}).values()) and result.get('youtube_search',{}).get('passed',True) and all(result.get('appearance_customization',{}).values()) and result.get('youtube_playlist',{}).get('passed',True) and all(result.get('theme_library',{}).values())
             (folder/'report.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
             test.grab().save(str(folder/'screen.png'));test.engine.stop();test.hide();test.deleteLater();QTimer.singleShot(250,app.quit)
         QTimer.singleShot(1300,finish_test)

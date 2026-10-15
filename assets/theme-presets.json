@@ -1,0 +1,82 @@
+{
+  "format": "desktop-music-player-themes",
+  "version": 1,
+  "themes": [
+    {
+      "name": "노을빛 살구",
+      "colors": {
+        "bg": "#2A1426",
+        "panel": "#3B1E35",
+        "text": "#FFF4E6",
+        "muted": "#D6B3A6",
+        "accent": "#FF9F6B",
+        "border": "#8A4F6E",
+        "spectrum": "#FFC48A"
+      },
+      "gradients": {
+        "bg": {
+          "enabled": true,
+          "end": "#4A1F33",
+          "direction": "vertical"
+        },
+        "panel": {
+          "enabled": true,
+          "end": "#2E1729",
+          "direction": "vertical"
+        },
+        "accent": {
+          "enabled": true,
+          "end": "#FF7A5C",
+          "direction": "horizontal"
+        },
+        "spectrum": {
+          "enabled": true,
+          "end": "#FF7A5C",
+          "direction": "vertical"
+        }
+      },
+      "visualizer": {
+        "enabled": true,
+        "style": "bars"
+      }
+    },
+    {
+      "name": "라벤더 오로라",
+      "colors": {
+        "bg": "#121A3A",
+        "panel": "#1A2346",
+        "text": "#EEEAFF",
+        "muted": "#B3B5D9",
+        "accent": "#B9A4FF",
+        "border": "#4A5A8C",
+        "spectrum": "#7EE8DA"
+      },
+      "gradients": {
+        "bg": {
+          "enabled": true,
+          "end": "#1B2F4F",
+          "direction": "diagonal"
+        },
+        "panel": {
+          "enabled": true,
+          "end": "#16304A",
+          "direction": "vertical"
+        },
+        "accent": {
+          "enabled": true,
+          "end": "#5FD6D0",
+          "direction": "horizontal"
+        },
+        "spectrum": {
+          "enabled": true,
+          "end": "#9C8CFF",
+          "direction": "vertical"
+        }
+      },
+      "visualizer": {
+        "enabled": true,
+        "style": "glow"
+      }
+    }
+  ]
+}

@@ -5,7 +5,7 @@ from pathlib import Path
 from .core import Track,app_root
 from .layout import COMPACT_HEIGHT,LAYOUT_VERSION
 BACKGROUND_DEFAULTS={'background':'','background_fit':'cover','background_zoom':1.0,'background_x':0.0,'background_y':0.0,'background_opacity':0.3,'background_tint':0.0,'background_expanded_mode':'follow','background_expanded':{},'background_list_transparency':0.0}
-DEFAULTS={'ui_scale':.8,'music_roots':['./music'],'volume':0.3,'theme':'silver_blue','opacity':1.0,'accent':'','background':'','always_on_top':False,'visualizer':False,'visualizer_style':'bars','custom_theme':{},'custom_gradients':{},'layout_version':LAYOUT_VERSION,'width':600,'compact_height':COMPACT_HEIGHT,'panel_height':340,'repeat':'off','shuffle':False,**BACKGROUND_DEFAULTS}
+DEFAULTS={'ui_scale':.8,'music_roots':['./music'],'volume':0.3,'theme':'silver_blue','opacity':1.0,'accent':'','background':'','always_on_top':False,'visualizer':False,'visualizer_style':'bars','theme_library':None,'custom_theme_name':'','custom_theme':{},'custom_gradients':{},'layout_version':LAYOUT_VERSION,'width':600,'compact_height':COMPACT_HEIGHT,'panel_height':340,'repeat':'off','shuffle':False,**BACKGROUND_DEFAULTS}
 class Store:
     def __init__(self,folder=None):
         self.folder=Path(folder or app_root()/'data');self.folder.mkdir(parents=True,exist_ok=True)

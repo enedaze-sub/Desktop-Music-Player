@@ -1,6 +1,6 @@
 {
   "date": "2026-10-15",
-  "unit_tests_passed": 92,
+  "unit_tests_passed": 102,
   "ui": {
     "font_family": "NanumSquareRound",
     "font_styles": [
@@ -29,6 +29,13 @@
     "expanded_background_preview": true,
     "appearance_source_unchanged": true,
     "asynchronous_album_cover": true,
+    "theme_library": {
+      "two_bundled_theme_previews": true,
+      "single_export_roundtrip": true,
+      "all_export_count_correct": true,
+      "duplicate_import_keeps_original": true,
+      "import_colors_and_gradients_preserved": true
+    },
     "appearance_customization": {
       "preset_previews": true,
       "custom_colors_live": true,
@@ -45,8 +52,8 @@
       "decoder_released_when_closed": true
     },
     "youtube_search": {
-      "first_page_seconds": 1.297,
-      "next_page_seconds": 0.812,
+      "first_page_seconds": 1.218,
+      "next_page_seconds": 0.875,
       "cached_previous_seconds": 0.063,
       "first_page_count": 10,
       "next_page_count": 10,
@@ -56,14 +63,14 @@
       "recognized": true,
       "source_switched": true,
       "tracks_found": 20,
-      "seconds": 0.703,
+      "seconds": 0.656,
       "all_queued": true,
       "order_preserved": true,
       "audio_source_unchanged": true,
       "passed": true
     },
     "passed": true,
-    "tested_version": "0.2.0"
+    "tested_version": "0.2.1"
   },
   "youtube_video": [
     {
@@ -154,7 +161,7 @@
     ],
     "alpha_zero_click_through_prevented": true
   },
-  "appearance_iteration": "0.2.0",
+  "appearance_iteration": "0.2.1",
   "appearance_editor": {
     "settings_size": [
       544,
@@ -480,5 +487,22 @@
     "all_queued": true,
     "queue_count": 20,
     "audio_unchanged": true
+  },
+  "theme_library": {
+    "named_profiles_switch_and_persist": true,
+    "rename_and_delete_drafts": true,
+    "cancel_restores_collection_and_active_theme": true,
+    "single_and_bundle_export_import_roundtrip": true,
+    "import_collisions_preserve_existing": true,
+    "invalid_import_is_atomic": true,
+    "selection_preserves_audio_and_size": true,
+    "deleted_defaults_do_not_respawn": true,
+    "legacy_custom_colors_preserved": true,
+    "long_name_does_not_expand_dialog": true,
+    "bundled_profiles": [
+      "노을빛 살구",
+      "라벤더 오로라"
+    ],
+    "text_contrast_minimum_tested": 4.5
   }
 }

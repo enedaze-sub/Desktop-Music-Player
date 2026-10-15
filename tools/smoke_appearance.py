@@ -11,13 +11,16 @@ from desktop_music_player.storage import Store
 from desktop_music_player.settings_editor import SettingsEditor
 from desktop_music_player.palettes import STYLES
 from desktop_music_player.spectrum_analysis import SpectrumAnalyzer
-ROOT=Path(__file__).resolve().parents[1];ART=ROOT/'artifacts/appearance-v020';ART.mkdir(parents=True,exist_ok=True)
+ROOT=Path(__file__).resolve().parents[1];ART=ROOT/'artifacts/appearance-v021';ART.mkdir(parents=True,exist_ok=True)
 app=QApplication([]);app.setQuitOnLastWindowClosed(False);configure_fonts();report={}
 with tempfile.TemporaryDirectory() as state:
  w=Window(Store(state),demo=True);w.show();w.config['visualizer']=True;w.title.setText('오늘의 플레이리스트 · My Favorite Songs');w.tell('재생 준비 완료')
  d=SettingsEditor(w);d.show();d.visual.setChecked(True)
  for i,t in enumerate(w.themes):
   d.themes.setCurrentIndex(i);d.apply_preview();QTest.qWait(80);d.grab().save(str(ART/('settings-'+t['id']+'.png')))
+ for n,name in enumerate(d.library_draft):
+  d.themes.setCurrentIndex(d.themes.findData('saved:'+name));d.apply_preview();QTest.qWait(80);d.grab().save(str(ART/('saved-theme-'+str(n)+'.png')));w.spectrum.levels=[.12+.82*abs(math.sin(i*.3)) for i in range(24)];w.grab().save(str(ART/('saved-player-'+str(n)+'.png')))
+ d.themes.setCurrentIndex(4)
  d.set_color('bg','#201921');d.set_color('panel','#332533');d.set_color('accent','#F5A873');d.set_color('text','#FFF0E6');d.set_color('muted','#CBB3C2');d.set_color('border','#79586D');d.set_color('spectrum','#D4C3FF')
  for key,end in (('bg','#183044'),('panel','#243857'),('accent','#F2CF88'),('spectrum','#69C8FF')):
   d.gradient_checks[key].setChecked(True);d.set_gradient_end(key,end);d.gradient_directions[key].setCurrentIndex(0)
