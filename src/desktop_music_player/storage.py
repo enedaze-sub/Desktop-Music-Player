@@ -35,7 +35,8 @@ class Store:
         if 'layout_version' not in explicit and data['compact_height']==252:data['compact_height']=COMPACT_HEIGHT
         data['volume']=max(0,min(1,float(data['volume'])))
         data['opacity']=max(.35,min(1,float(data['opacity'])))
-        return data
+        from .theme_library import migrate_bundled_themes
+        return migrate_bundled_themes(data)
     def set(self,key,value):
         with self.connect() as c:c.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',(key,json.dumps(value,ensure_ascii=False)))
     def set_many(self,values):

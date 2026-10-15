@@ -20,12 +20,15 @@ def gradient_settings(value,colors):
                      'direction':item.get('direction') if item.get('direction') in DIRECTIONS else 'vertical'}
     return result
 
+def builtin_gradients(theme):
+    return gradient_settings({key:{'enabled':bool(theme.get(key+'_end')),'end':theme.get(key+'_end') or theme[key],'direction':theme.get(key+'_direction','vertical')} for key in GRADIENT_TARGETS},theme)
+
 def resolve_theme(config,themes):
     theme=dict(next((t for t in themes if t['id']==config['theme']),themes[0]))
     if theme['id']=='custom':theme.update(palette(config.get('custom_theme'),theme))
     elif valid_color(config.get('accent')):theme['accent']=config['accent'];theme['spectrum']=config['accent']
     theme.setdefault('spectrum',theme['accent'])
-    gradients=gradient_settings(config.get('custom_gradients') if theme['id']=='custom' else {},theme)
+    gradients=gradient_settings(config.get('custom_gradients'),theme) if theme['id']=='custom' else builtin_gradients(theme)
     for key,item in gradients.items():theme[key+'_end']=item['end'] if item['enabled'] else '';theme[key+'_direction']=item['direction']
     return theme
 LCD_COLORS={'silver_blue':('#2B66C4','#0F3373','#EEF5FF','#A9C3EA','#8A97AA'),'midnight':('#10284F','#07132A','#DCE9FF','#8FA6CC','#243E62'),'warm_cream':('#3C6E86','#1C3B4B','#F6EEDF','#BFD3D9','#819A9E'),'visualizer':('#06191D','#020A0C','#E6FFF7','#86A8A0','#224B45')}
@@ -42,5 +45,5 @@ def qss_fill(theme,key):
     if not end:return theme[key]
     x,y=gradient_points(theme.get(key+'_direction','vertical'));return f'qlineargradient(x1:0,y1:0,x2:{x},y2:{y},stop:0 {theme[key]},stop:1 {end})'
 def lcd_fill(theme):
-    if theme['id']=='custom':return qss_fill(theme,'panel')
+    if theme['id'] not in LCD_COLORS:return qss_fill(theme,'panel')
     a,b,*_=lcd_colors(theme);return f'qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {a},stop:1 {b})'

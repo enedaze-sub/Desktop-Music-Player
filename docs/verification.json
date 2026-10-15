@@ -1,6 +1,6 @@
 {
   "date": "2026-10-15",
-  "unit_tests_passed": 102,
+  "unit_tests_passed": 109,
   "ui": {
     "font_family": "NanumSquareRound",
     "font_styles": [
@@ -21,7 +21,7 @@
   "native_executable": {
     "position_ms": 1114,
     "spectrum_frames": 14,
-    "themes": 5,
+    "themes": 7,
     "font_family": "NanumSquareRound",
     "bold_available": true,
     "appearance_live_preview": true,
@@ -30,7 +30,7 @@
     "appearance_source_unchanged": true,
     "asynchronous_album_cover": true,
     "theme_library": {
-      "two_bundled_theme_previews": true,
+      "six_builtin_themes_and_separate_custom": true,
       "single_export_roundtrip": true,
       "all_export_count_correct": true,
       "duplicate_import_keeps_original": true,
@@ -52,8 +52,8 @@
       "decoder_released_when_closed": true
     },
     "youtube_search": {
-      "first_page_seconds": 1.218,
-      "next_page_seconds": 0.875,
+      "first_page_seconds": 1.25,
+      "next_page_seconds": 0.812,
       "cached_previous_seconds": 0.063,
       "first_page_count": 10,
       "next_page_count": 10,
@@ -63,14 +63,15 @@
       "recognized": true,
       "source_switched": true,
       "tracks_found": 20,
-      "seconds": 0.656,
+      "seconds": 0.703,
       "all_queued": true,
       "order_preserved": true,
       "audio_source_unchanged": true,
       "passed": true
     },
     "passed": true,
-    "tested_version": "0.2.1"
+    "tested_version": "0.2.2",
+    "builtin_themes": 6
   },
   "youtube_video": [
     {
@@ -161,7 +162,7 @@
     ],
     "alpha_zero_click_through_prevented": true
   },
-  "appearance_iteration": "0.2.1",
+  "appearance_iteration": "0.2.2",
   "appearance_editor": {
     "settings_size": [
       544,
@@ -499,10 +500,21 @@
     "deleted_defaults_do_not_respawn": true,
     "legacy_custom_colors_preserved": true,
     "long_name_does_not_expand_dialog": true,
-    "bundled_profiles": [
-      "노을빛 살구",
-      "라벤더 오로라"
-    ],
-    "text_contrast_minimum_tested": 4.5
+    "bundled_profiles": [],
+    "text_contrast_minimum_tested": 4.5,
+    "bundled_profiles_note": "Both former seeded profiles are now built-in themes; saved library contains user profiles only."
+  },
+  "theme_catalog": {
+    "builtin_count": 6,
+    "custom_separate": true,
+    "bright_apricot_text_and_muted_contrast_minimum": 4.5,
+    "accent_icon_contrast_minimum": 4.5,
+    "lavender_original_palette_preserved": true,
+    "builtin_gradient_preview_and_copy": true,
+    "untouched_legacy_profiles_promoted": true,
+    "edited_profiles_and_renamed_copies_preserved": true,
+    "unsaved_active_color_and_wave_edits_preserved": true,
+    "migration_read_does_not_rewrite_database": true,
+    "native_executable_passed": true
   }
 }

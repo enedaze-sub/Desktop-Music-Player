@@ -487,6 +487,7 @@ class Window(QMainWindow):
     def set_background(self,path):
         self.config['background']=path;self.store.set('background',path);self.apply_background(self.config)
     def play_ink(self):
+        if self.theme.get('on_accent'):return self.theme['on_accent']
         color=QColor(self.theme['accent'])
         channels=[x/12.92 if x<=.04045 else ((x+.055)/1.055)**2.4 for x in (color.redF(),color.greenF(),color.blueF())]
         luminance=sum(x*w for x,w in zip(channels,(.2126,.7152,.0722)))
@@ -606,12 +607,12 @@ def main():
                 editor.apply_preview();wait(80);gradient=all(test.theme[key+'_end']=='#689CD3' for key in ('bg','panel','accent','spectrum')) and test.spectrum.color!=test.theme['accent'];editor.grab().save(str(folder/'custom-gradients.png'))
                 custom=all(test.theme[key]==value and editor.preview.theme[key]==value for key,value in colors.items())
                 from .theme_library import read_profiles
-                presets_ok=len(editor.library_draft)==2
-                for n,name in enumerate(list(editor.library_draft)):
-                    editor.themes.setCurrentIndex(editor.themes.findData('saved:'+name));editor.apply_preview();wait(80);presets_ok=presets_ok and test.config['custom_theme_name']==name;editor.grab().save(str(folder/('saved-theme-'+str(n)+'.png')))
-                editor.themes.setCurrentIndex(4);profile=editor.current_profile('Self-test theme');editor.library_controls.save_named('Self-test theme');editor.library_controls.export_file(folder/'theme-export.json');editor.library_controls.export_file(folder/'themes-export.json',True)
+                presets_ok=len([t for t in test.themes if t['id']!='custom'])==6 and not editor.library_draft
+                for n,theme_id in enumerate(('sunset_apricot','lavender_aurora')):
+                    editor.themes.setCurrentIndex(editor.themes.findData('base:'+theme_id));editor.apply_preview();wait(80);presets_ok=presets_ok and test.config['theme']==theme_id and not editor.custom_panel.isVisible() and bool(test.theme.get('bg_end'));editor.grab().save(str(folder/('builtin-theme-'+str(n)+'.png')))
+                editor.themes.setCurrentIndex(editor.themes.findData('base:custom'));profile=editor.current_profile('Self-test theme');editor.library_controls.save_named('Self-test theme');editor.library_controls.export_file(folder/'theme-export.json');editor.library_controls.export_file(folder/'themes-export.json',True)
                 imported=editor.library_controls.import_file(folder/'theme-export.json');editor.apply_preview();wait(80)
-                result['theme_library']={'two_bundled_theme_previews':presets_ok,'single_export_roundtrip':read_profiles(folder/'theme-export.json')==[profile],'all_export_count_correct':len(read_profiles(folder/'themes-export.json'))==3,'duplicate_import_keeps_original':imported==['Self-test theme (2)'] and 'Self-test theme' in editor.library_draft,'import_colors_and_gradients_preserved':editor.custom_draft==profile['colors'] and editor.gradient_draft==profile['gradients']}
+                result['theme_library']={'six_builtin_themes_and_separate_custom':presets_ok,'single_export_roundtrip':read_profiles(folder/'theme-export.json')==[profile],'all_export_count_correct':len(read_profiles(folder/'themes-export.json'))==1,'duplicate_import_keeps_original':imported==['Self-test theme (2)'] and 'Self-test theme' in editor.library_draft,'import_colors_and_gradients_preserved':editor.custom_draft==profile['colors'] and editor.gradient_draft==profile['gradients']}
                 editor.reject();stopped=not editor.preview.timer.isActive();editor.deleteLater()
                 result['appearance_customization']={'preset_previews':presets,'custom_colors_live':custom,'independent_wave_and_gradients':gradient,'five_spectrum_styles':styles,'cancel_restored':json.dumps(test.config,sort_keys=True)==original,'preview_timer_stopped':stopped}
             if '--test-video' in sys.argv:

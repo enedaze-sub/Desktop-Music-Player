@@ -31,13 +31,13 @@ class CompactGradientTests(unittest.TestCase):
   s.set('compact_height',320);self.assertEqual(s.config()['compact_height'],320)
   s.set_many({'layout_version':2,'compact_height':252});self.assertEqual(s.config()['compact_height'],252)
  def test_gradient_preview_independent_wave_color_cancel_and_persist(self):
-  w=self.w;original=deepcopy(w.config);saved=w.store.config();d=SettingsEditor(w);d.themes.setCurrentIndex(4);d.set_color('accent','#00FF00');d.set_color('spectrum','#BFA0FF');d.visual.setChecked(True)
+  w=self.w;original=deepcopy(w.config);saved=w.store.config();d=SettingsEditor(w);d.themes.setCurrentIndex(d.themes.findData('base:custom'));d.set_color('accent','#00FF00');d.set_color('spectrum','#BFA0FF');d.visual.setChecked(True)
   with patch.object(w.engine.player,'setSource') as source:
    for key in ('bg','panel','accent','spectrum'):
     d.gradient_checks[key].setChecked(True);self.assertTrue(d.set_gradient_end(key,'#2468AB'));d.gradient_directions[key].setCurrentIndex(d.gradient_directions[key].findData('horizontal'))
    d.apply_preview();self.assertEqual(w.spectrum.color,'#BFA0FF');self.assertEqual(w.spectrum.color_end,'#2468AB');self.assertEqual(w.spectrum.direction,'horizontal');self.assertEqual(d.preview.spectrum.color,w.spectrum.color);self.assertEqual(d.preview.theme,w.theme);self.assertEqual(w.store.config(),saved)
    draft=deepcopy(d.gradient_draft);d.reject();self.assertEqual(w.config,original);self.assertEqual(w.store.config(),saved);source.assert_not_called();d.deleteLater()
-  d=SettingsEditor(w);d.themes.setCurrentIndex(4);d.gradient_checks['spectrum'].setChecked(True);d.set_gradient_end('spectrum','#ABCDEF');d.accept();cfg=w.store.config();self.assertEqual(cfg['custom_gradients']['spectrum']['end'],'#ABCDEF');self.assertTrue(cfg['custom_gradients']['spectrum']['enabled']);d.deleteLater()
+  d=SettingsEditor(w);d.themes.setCurrentIndex(d.themes.findData('base:custom'));d.gradient_checks['spectrum'].setChecked(True);d.set_gradient_end('spectrum','#ABCDEF');d.accept();cfg=w.store.config();self.assertEqual(cfg['custom_gradients']['spectrum']['end'],'#ABCDEF');self.assertTrue(cfg['custom_gradients']['spectrum']['enabled']);d.deleteLater()
  def test_actual_surface_and_spectrum_gradients_and_endpoint_cache_invalidation(self):
   colors={k:self.w.themes[-1][k] for k in COLOR_LABELS};colors['bg']='#FF0000';cfg=dict(self.w.config,theme='custom',custom_theme=colors,custom_gradients={'bg':{'enabled':True,'end':'#0000FF','direction':'horizontal'}});t=resolve_theme(cfg,self.w.themes)
   surface=Surface();surface.resize(320,100);surface.set_theme(t);surface.show();image=surface.grab().toImage();self.assertGreater(image.pixelColor(10,50).red(),200);self.assertGreater(image.pixelColor(310,50).blue(),200);first=surface.cached_background.cacheKey()
@@ -45,7 +45,7 @@ class CompactGradientTests(unittest.TestCase):
   spectrum=Spectrum();spectrum.resize(300,40);spectrum.set_colors('#FF0000','#0000FF','horizontal');spectrum.levels=[1.]*24;spectrum.show();image=spectrum.grab().toImage();self.assertGreater(image.pixelColor(6,20).red(),200);self.assertGreater(image.pixelColor(294,20).blue(),200);spectrum.hide();spectrum.deleteLater()
  def test_invalid_gradient_data_and_preset_copy_reset_are_safe(self):
   colors={k:self.w.themes[-1][k] for k in COLOR_LABELS};r=gradient_settings({'bg':{'enabled':'true','end':'bad','direction':'bad'},'panel':42},colors);self.assertFalse(r['bg']['enabled']);self.assertEqual(r['bg']['end'],colors['bg']);self.assertEqual(r['bg']['direction'],'vertical')
-  d=SettingsEditor(self.w);d.themes.setCurrentIndex(4);d.gradient_checks['spectrum'].setChecked(True);d.gradient_directions['spectrum'].setCurrentIndex(2);d.copy_preset();self.assertFalse(d.gradient_checks['spectrum'].isChecked());self.assertEqual(d.gradient_directions['spectrum'].currentData(),'vertical');self.assertFalse(d.set_gradient_end('bg','#123'));d.reject();d.deleteLater()
+  d=SettingsEditor(self.w);d.themes.setCurrentIndex(d.themes.findData('base:custom'));d.gradient_checks['spectrum'].setChecked(True);d.gradient_directions['spectrum'].setCurrentIndex(2);d.copy_preset();self.assertFalse(d.gradient_checks['spectrum'].isChecked());self.assertEqual(d.gradient_directions['spectrum'].currentData(),'vertical');self.assertFalse(d.set_gradient_end('bg','#123'));d.reject();d.deleteLater()
 class PlaylistLinkTests(unittest.TestCase):
  def test_shared_formatted_and_protocol_less_links_normalize(self):
   base='https://youtube.com/playlist?list=PLexample&si=tracking'

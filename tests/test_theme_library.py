@@ -13,12 +13,15 @@ from desktop_music_player.theme_library import *
 class ThemeLibraryTests(unittest.TestCase):
  @classmethod
  def setUpClass(cls):cls.app=QApplication.instance() or QApplication([]);configure_fonts()
- def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.w=Window(Store(self.root/'state'),demo=True);self.w.show();QTest.qWait(20);self.d=SettingsEditor(self.w);self.d.show()
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);store=Store(self.root/'state');profiles=deepcopy(bundled_profiles())
+  for i,p in enumerate(profiles):p['name']='사용자 테마 '+str(i+1)
+  store.set('theme_library',{p['name']:p for p in profiles});self.w=Window(store,demo=True);self.w.show();QTest.qWait(20);self.d=SettingsEditor(self.w);self.d.show()
  def tearDown(self):
   if not self.d.closed:self.d.reject()
   self.d.deleteLater();self.w.engine.stop();self.w.hide();self.w.deleteLater();QTest.qWait(30);self.tmp.cleanup()
  def test_multiple_named_profiles_switch_persist_restart_and_edit_selected(self):
-  d=self.d;d.themes.setCurrentIndex(4);d.set_color('spectrum','#BA91FF');d.gradient_checks['spectrum'].setChecked(True);d.set_gradient_end('spectrum','#6ACEBB');d.visual.setChecked(True);d.visual_style.setCurrentIndex(d.visual_style.findData('glow'));d.library_controls.save_named('나의 밤')
+  d=self.d;d.themes.setCurrentIndex(d.themes.findData('base:custom'));d.set_color('spectrum','#BA91FF');d.gradient_checks['spectrum'].setChecked(True);d.set_gradient_end('spectrum','#6ACEBB');d.visual.setChecked(True);d.visual_style.setCurrentIndex(d.visual_style.findData('glow'));d.library_controls.save_named('나의 밤')
   d.set_color('accent','#FFAA66');d.library_controls.save_named('나의 낮');d.themes.setCurrentIndex(d.themes.findData('saved:나의 밤'));d.apply_preview();self.assertEqual(self.w.spectrum.color,'#BA91FF');self.assertNotEqual(self.w.theme['accent'],'#FFAA66');self.assertEqual(self.w.spectrum.color_end,'#6ACEBB')
   d.set_color('accent','#FCAA78');d.themes.setCurrentIndex(d.themes.findData('saved:나의 낮'));d.themes.setCurrentIndex(d.themes.findData('saved:나의 밤'));self.assertEqual(d.custom_draft['accent'],'#FCAA78');d.accept();saved=self.w.store.config();self.assertEqual(saved['custom_theme_name'],'나의 밤');self.assertEqual(saved['theme_library']['나의 밤']['colors']['accent'],'#FCAA78');self.assertEqual(saved['custom_theme']['accent'],'#FCAA78');self.assertIn('나의 낮',saved['theme_library'])
   again=SettingsEditor(self.w);self.assertEqual(again.active_saved_name,'나의 밤');self.assertEqual(again.themes.currentData(),'saved:나의 밤');again.reject();again.deleteLater()
@@ -50,7 +53,7 @@ class ThemeLibraryTests(unittest.TestCase):
   for name in list(d.library_draft):d.themes.setCurrentIndex(d.themes.findData('saved:'+name));d.library_controls.delete_named()
   d.accept();self.assertEqual(self.w.store.config()['theme_library'],{});again=SettingsEditor(self.w);self.assertEqual(again.library_draft,{});again.reject();again.deleteLater()
  def test_existing_custom_draft_is_not_replaced_by_new_bundled_profiles(self):
-  self.assertEqual(self.w.config['theme_library'],None);self.assertEqual(self.w.config['custom_theme'],{});self.assertEqual(self.d.themes.currentData(),'base:silver_blue');self.assertEqual(len(self.d.library_draft),2)
+  fresh=Store(self.root/'fresh').config();self.assertEqual(fresh['theme_library'],{});self.assertEqual(fresh['custom_theme'],{});self.assertEqual(library_profiles(None),{});self.assertEqual(self.d.themes.currentData(),'base:silver_blue')
  def test_bundled_theme_contrast_and_independent_wave_colors(self):
   def luminance(color):
    values=[int(color[i:i+2],16)/255 for i in (1,3,5)];linear=[v/12.92 if v<=.04045 else ((v+.055)/1.055)**2.4 for v in values];return sum(v*w for v,w in zip(linear,(.2126,.7152,.0722)))

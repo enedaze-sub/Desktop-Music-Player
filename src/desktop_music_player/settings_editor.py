@@ -9,7 +9,7 @@ from .scaling import scale_tree,stylesheet
 from .palettes import COLOR_LABELS,STYLES,palette,GRADIENT_TARGETS,DIRECTIONS,gradient_settings
 from .layout import COMPACT_HEIGHT,EXPANDED_BASE
 from .appearance_preview import AppearancePreview
-from .theme_library import library_profiles,validate_profile
+from .theme_library import library_profiles,validate_profile,profile_from_theme
 from .theme_library_editor import ThemeLibraryControls
 
 class SettingsEditor(QDialog):
@@ -138,6 +138,10 @@ class SettingsEditor(QDialog):
         data=self.themes.currentData() or '';self.owner.config['accent']='';self.active_saved_name=data[6:] if data.startswith('saved:') else ''
         self.library_controls.sync(self.active_saved_name);self.custom_panel.setVisible(self.selected_theme_id()=='custom')
         if self.active_saved_name:self.load_saved_theme(self.active_saved_name)
+        else:
+            theme=next(t for t in self.owner.themes if t['id']==self.selected_theme_id())
+            if 'visualizer_default' in theme:
+                self.visual.setChecked(theme['visualizer_default']);self.visual_style.setCurrentIndex(self.visual_style.findData(theme['visualizer_style']))
         self.schedule_preview()
     def refresh_colors(self):
         for key,color in self.custom_draft.items():
@@ -168,8 +172,9 @@ class SettingsEditor(QDialog):
         if not self.set_color(key,self.color_fields[key].text()):self.color_fields[key].setText(self.custom_draft[key])
     def copy_preset(self):
         self.select_saved_theme('',load=False)
-        preset=[t for t in self.owner.themes if t['id']!='custom'][self.seed_theme.currentIndex()];self.custom_draft=palette(preset,preset);self.gradient_draft=gradient_settings({},self.custom_draft)
-        for key,check in self.gradient_checks.items():check.setChecked(False)
+        preset=[t for t in self.owner.themes if t['id']!='custom'][self.seed_theme.currentIndex()];profile=profile_from_theme(preset);self.custom_draft=profile['colors'];self.gradient_draft=profile['gradients']
+        if 'visualizer_default' in preset:
+            self.visual.setChecked(profile['visualizer']['enabled']);self.visual_style.setCurrentIndex(self.visual_style.findData(profile['visualizer']['style']))
         self.refresh_colors();self.schedule_preview()
     def accept(self):
         if self.closed:return

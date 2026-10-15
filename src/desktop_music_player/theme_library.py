@@ -3,7 +3,7 @@ from copy import deepcopy
 import json,sys
 from pathlib import Path
 from functools import lru_cache
-from .palettes import COLOR_LABELS,GRADIENT_TARGETS,DIRECTIONS,STYLES,valid_color,gradient_settings
+from .palettes import COLOR_LABELS,GRADIENT_TARGETS,DIRECTIONS,STYLES,valid_color,gradient_settings,builtin_gradients
 from .core import app_root
 FORMAT='desktop-music-player-themes'
 VERSION=1
@@ -67,7 +67,7 @@ def bundled_profiles():
     return read_profiles(root/'assets/theme-presets.json')
 
 def library_profiles(value):
-    if value is None:return {p['name']:deepcopy(p) for p in bundled_profiles()}
+    if value is None:return {}
     result={}
     if isinstance(value,dict):
         for item in value.values():
@@ -75,3 +75,28 @@ def library_profiles(value):
                 profile=validate_profile(item);result[profile['name']]=profile
             except ValueError:continue
     return result
+
+
+def profile_from_theme(theme):
+    return validate_profile({'name':theme['name'],'colors':{key:theme[key] for key in COLOR_LABELS},'gradients':builtin_gradients(theme),'visualizer':{'enabled':theme.get('visualizer_default',True),'style':theme.get('visualizer_style','bars')}})
+
+@lru_cache(maxsize=1)
+def legacy_bundled_profiles():
+    root=Path(getattr(sys,'_MEIPASS',app_root()))
+    return read_profiles(root/'assets/legacy-theme-presets-v021.json')
+
+def migrate_bundled_themes(config):
+    """Promote untouched v0.2.1 presets; retain any user edits or copies."""
+    library=library_profiles(config.get('theme_library'))
+    for legacy,theme_id in zip(legacy_bundled_profiles(),('sunset_apricot','lavender_aurora')):
+        name=legacy['name'];saved=library.get(name)
+        was_seeded=saved==legacy or (config.get('theme_library') is None and saved is None)
+        if was_seeded and config.get('theme')=='custom' and config.get('custom_theme_name')==name:
+            try:
+                active=validate_profile({'name':name,'colors':config.get('custom_theme'),'gradients':config.get('custom_gradients'),'visualizer':{'enabled':config.get('visualizer',False),'style':config.get('visualizer_style','bars')}})
+            except ValueError:active=None
+            if active==legacy:config.update(theme=theme_id,custom_theme_name='')
+            elif active is not None:library[name]=active
+        if library.get(name)==legacy:library.pop(name)
+    config['theme_library']=library
+    return config

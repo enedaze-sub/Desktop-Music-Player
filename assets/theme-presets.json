@@ -5,33 +5,33 @@
     {
       "name": "노을빛 살구",
       "colors": {
-        "bg": "#2A1426",
-        "panel": "#3B1E35",
-        "text": "#FFF4E6",
-        "muted": "#D6B3A6",
-        "accent": "#FF9F6B",
-        "border": "#8A4F6E",
-        "spectrum": "#FFC48A"
+        "bg": "#FFF6EA",
+        "panel": "#FFFBF4",
+        "text": "#3A2418",
+        "muted": "#7A5340",
+        "accent": "#F2895C",
+        "border": "#E6C2A6",
+        "spectrum": "#FFB37A"
       },
       "gradients": {
         "bg": {
           "enabled": true,
-          "end": "#4A1F33",
+          "end": "#FFE3CC",
           "direction": "vertical"
         },
         "panel": {
           "enabled": true,
-          "end": "#2E1729",
+          "end": "#FFEEDD",
           "direction": "vertical"
         },
         "accent": {
           "enabled": true,
-          "end": "#FF7A5C",
+          "end": "#E9704F",
           "direction": "horizontal"
         },
         "spectrum": {
           "enabled": true,
-          "end": "#FF7A5C",
+          "end": "#E0663F",
           "direction": "vertical"
         }
       },
