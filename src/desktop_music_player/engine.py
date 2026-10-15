@@ -8,6 +8,7 @@ import numpy as np
 from PySide6.QtCore import QObject, QUrl, Signal, Slot, QThreadPool, QTimer
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QAudioBufferOutput, QAudioFormat, QVideoFrame
 from .jobs import Job
+from .spectrum_analysis import SpectrumAnalyzer
 from .youtube import resolve
 from .core import VIDEO,app_root
 
@@ -30,6 +31,7 @@ class Engine(QObject):
         self.audio = QAudioOutput(self)
         self.audio.setVolume(.3)
         self.player.setAudioOutput(self.audio)
+        self.spectrum_analyzer = SpectrumAnalyzer()
         self.capture = QAudioBufferOutput(self)
         self.capture.audioBufferReceived.connect(self.buffer)
         self.player.playbackStateChanged.connect(self.play_state)
@@ -452,11 +454,8 @@ class Engine(QObject):
         dtype=types.get(fmt.sampleFormat())
         if dtype is None:return
         samples=np.frombuffer(buffer.data(),dtype=dtype)
-        channels=max(1,fmt.channelCount());samples=samples[::channels][-1024:].astype(np.float32)
+        channels=max(1,fmt.channelCount());samples=samples[::channels][-2048:].astype(np.float32)
         if len(samples)<64:return
         if dtype==np.uint8:samples=(samples-128)/128
         elif dtype!=np.float32:samples/=np.iinfo(dtype).max
-        spectrum=np.abs(np.fft.rfft(samples*np.hanning(len(samples))))
-        bands=np.array([np.max(x) if len(x) else 0 for x in np.array_split(spectrum[1:len(spectrum)//2],24)])
-        bands=np.clip(np.log1p(bands)*.22,0,1)
-        self.spectrum.emit(bands.tolist())
+        self.spectrum.emit(self.spectrum_analyzer.analyze(samples,fmt.sampleRate()))

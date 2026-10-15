@@ -16,5 +16,7 @@
   "background_tint": 0,
   "background_expanded_mode": "follow",
   "background_expanded": {},
-  "background_list_transparency": 0.0
+  "background_list_transparency": 0.0,
+  "custom_theme": {},
+  "visualizer_style": "bars"
 }

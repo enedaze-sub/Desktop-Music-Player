@@ -103,22 +103,44 @@ class Artwork(QWidget):
         p.drawArc(QRectF(4,4,124,124),90*16,-int(self.ratio*360*16))
 class Spectrum(QWidget):
     def __init__(self,parent=None):
-        super().__init__(parent);self.setFixedHeight(42);self.levels=[0]*24;self.color='#6EF0CF';self.active=False
-        self.timer=QTimer(self);self.timer.setInterval(50);self.timer.timeout.connect(self.tick)
-        self.targets=[0]*24
+        super().__init__(parent);self.setFixedHeight(40);self.levels=[0.]*24;self.color='#6EF0CF';self.background='#07132A';self.active=False;self.style_name='bars'
+        self.timer=QTimer(self);self.timer.setInterval(50);self.timer.timeout.connect(self.tick);self.targets=[0.]*24
+    def set_style(self,value):
+        from .palettes import STYLES
+        value=value if value in STYLES else 'bars'
+        if self.style_name!=value:self.style_name=value;self.update()
     def set_active(self,value):
+        if self.active==value:return
         self.active=value
         self.timer.start() if value else self.timer.stop()
-        if not value:self.levels=[0]*24;self.update()
-    def accept(self,values):self.targets=values
+        if not value:self.levels=[0.]*24;self.targets=[0.]*24;self.update()
+    def accept(self,values):self.targets=[max(0.,min(1.,float(v))) for v in values[:24]]+[0.]*max(0,24-len(values))
     def tick(self):
-        self.levels=[max(target,level*.76) for target,level in zip(self.targets,self.levels)]
+        self.levels=[max(target,level*.79) for target,level in zip(self.targets,self.levels)]
         self.targets=[x*.72 for x in self.targets];self.update()
+    def plot_rect(self):
+        scale=float(self.property('uiScale') or 1);width=min(self.width(),620*scale)
+        return QRectF((self.width()-width)/2,2,width,max(1,self.height()-4))
     def paintEvent(self,event):
-        p=QPainter(self);p.setRenderHint(QPainter.Antialiasing);p.setPen(Qt.NoPen)
-        color=QColor(self.color);color.setAlpha(170);p.setBrush(color);step=self.width()/24
+        p=QPainter(self);p.setRenderHint(QPainter.Antialiasing);p.setPen(Qt.NoPen);r=self.plot_rect();step=r.width()/24
+        color=QColor(self.color);bg=QColor(self.background)
+        # Retain the chosen color in settings; improve only the drawn ink if needed.
+        if abs(color.lightnessF()-bg.lightnessF())<.22:color=color.lighter(170) if bg.lightnessF()<.5 else color.darker(170)
+        grad=QLinearGradient(0,r.top(),0,r.bottom());grad.setColorAt(0,color.lighter(145));grad.setColorAt(1,color);p.setBrush(grad)
+        gap=max(1,min(4,step*.22));base=max(1,r.height()*.035)
+        if self.style_name=='line':
+            points=[(r.left()+step*(i+.5),r.bottom()-max(base,level*r.height())) for i,level in enumerate(self.levels)]
+            path=QPainterPath();path.moveTo(*points[0])
+            for x,y in points[1:]:path.lineTo(x,y)
+            fill=QPainterPath(path);fill.lineTo(points[-1][0],r.bottom());fill.lineTo(points[0][0],r.bottom());fill.closeSubpath()
+            shade=QColor(color);shade.setAlpha(75);p.fillPath(fill,shade);p.setBrush(Qt.NoBrush);p.setPen(QPen(color,max(1.5,r.height()*.065),Qt.SolidLine,Qt.RoundCap,Qt.RoundJoin));p.drawPath(path);return
         for i,level in enumerate(self.levels):
-            height=max(2,level*(self.height()-4));p.drawRoundedRect(QRectF(i*step+1,self.height()-height,step-3,height),2,2)
+            height=max(base,level*r.height());x=r.left()+i*step+gap/2;width=max(1,step-gap)
+            if self.style_name=='mirror':p.drawRoundedRect(QRectF(x,r.center().y()-height/2,width,height),1.5,1.5)
+            elif self.style_name=='led':
+                cell=max(2,r.height()/8);count=max(1,round(height/cell))
+                for n in range(count):p.drawRect(QRectF(x,r.bottom()-(n+1)*cell,width,max(1,cell-1)))
+            else:p.drawRoundedRect(QRectF(x,r.bottom()-height,width,height),1.5,1.5)
 class DragBar(QFrame):
     def __init__(self,window):super().__init__();self.window=window
     def mousePressEvent(self,e):
@@ -156,7 +178,7 @@ class Deck(QWidget):
         scale=float(self.property('uiScale') or 1);px=lambda v:round(v*scale)
         self.art.setGeometry(0,px(2),px(132),px(132))
         self.pad.setGeometry(self.width()-px(132),px(2),px(132),px(132))
-        self.lcd.setGeometry(px(148),px(6),max(px(140),self.width()-px(296)),px(124))
+        self.lcd.setGeometry(px(148),px(2),max(px(140),self.width()-px(296)),px(132))
     def resizeEvent(self,event):self.layout_children();super().resizeEvent(event)
 
 class LCDFrame(QFrame):

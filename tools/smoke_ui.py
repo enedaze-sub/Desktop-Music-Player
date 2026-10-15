@@ -27,7 +27,7 @@ for theme in window.themes:
  window.grab().save(str(ART/(theme['id']+'-compact.png')))
  window.expand('보관함');QTest.qWait(300)
  window.grab().save(str(ART/(theme['id']+'-expanded.png')))
-results['screenshots']=8
+results['screenshots']=len(window.themes)*2
 window.config['theme']='silver_blue';window.apply_theme()
 window.resize(window.px(560),window.height());QTest.qWait(120)
 for name,b in window.nav_buttons.items():
@@ -45,7 +45,7 @@ with wave.open(str(wav),'wb') as f:
  f.setnchannels(1);f.setsampwidth(2);f.setframerate(22050)
  f.writeframes(b''.join(struct.pack('<h',int(9000*math.sin(2*math.pi*440*i/22050))) for i in range(22050*4)))
 received=[];window.engine.spectrum.connect(lambda bands:received.append(bands));window.engine.audio.setMuted(True)
-window.config['theme']='visualizer';window.apply_theme();window.engine.play_track(Track('Sample',str(wav)));QTest.qWait(1700)
+window.config.update(theme='visualizer',visualizer=True);window.apply_theme();window.engine.play_track(Track('Sample',str(wav)));QTest.qWait(1700)
 assert window.engine.player.position()>400,window.engine.player.errorString()
 assert len(received)>3,('spectrum samples',len(received))
 results['playback_position_ms']=window.engine.player.position();results['spectrum_frames']=len(received)

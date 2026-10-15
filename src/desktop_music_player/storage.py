@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from .core import Track,app_root
 BACKGROUND_DEFAULTS={'background':'','background_fit':'cover','background_zoom':1.0,'background_x':0.0,'background_y':0.0,'background_opacity':0.3,'background_tint':0.0,'background_expanded_mode':'follow','background_expanded':{},'background_list_transparency':0.0}
-DEFAULTS={'ui_scale':.8,'music_roots':['./music'],'volume':0.3,'theme':'silver_blue','opacity':1.0,'accent':'','background':'','always_on_top':False,'visualizer':False,'width':600,'compact_height':252,'panel_height':340,'repeat':'off','shuffle':False,**BACKGROUND_DEFAULTS}
+DEFAULTS={'ui_scale':.8,'music_roots':['./music'],'volume':0.3,'theme':'silver_blue','opacity':1.0,'accent':'','background':'','always_on_top':False,'visualizer':False,'visualizer_style':'bars','custom_theme':{},'width':600,'compact_height':252,'panel_height':340,'repeat':'off','shuffle':False,**BACKGROUND_DEFAULTS}
 class Store:
     def __init__(self,folder=None):
         self.folder=Path(folder or app_root()/'data');self.folder.mkdir(parents=True,exist_ok=True)
@@ -20,13 +20,17 @@ class Store:
             with conn:yield conn
         finally:conn.close()
     def config(self):
-        data=dict(DEFAULTS)
+        from copy import deepcopy
+        data=deepcopy(DEFAULTS);explicit=set()
         personal=self.folder/'local.json'
         if personal.exists():
-            try:data.update(json.loads(personal.read_text(encoding='utf-8-sig')))
+            try:
+                local=json.loads(personal.read_text(encoding='utf-8-sig'));data.update(local);explicit.update(local)
             except (OSError,ValueError):pass
         with self.connect() as c:
-            data.update({key:json.loads(value) for key,value in c.execute('SELECT key,value FROM settings')})
+            saved={key:json.loads(value) for key,value in c.execute('SELECT key,value FROM settings')};data.update(saved);explicit.update(saved)
+        # Preserve the former mint theme's automatic visualizer once on upgrade.
+        if data['theme']=='visualizer' and 'visualizer_style' not in explicit:data['visualizer']=True
         data['volume']=max(0,min(1,float(data['volume'])))
         data['opacity']=max(.35,min(1,float(data['opacity'])))
         return data

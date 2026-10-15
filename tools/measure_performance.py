@@ -21,7 +21,7 @@ measure('idle')
 roots=Store().roots();start=time.monotonic();library=scan_library(roots);report['library']={'tracks':len(library),'scan_seconds':round(time.monotonic()-start,2)}
 window.set_library(library)
 window.engine.player.setLoops(-1);window.engine.play_track(Track('Sample',str(ART/'sample.wav')));QTest.qWait(500);measure('audio_only')
-window.config['theme']='visualizer';window.apply_theme();QTest.qWait(500);measure('visualizer_visible')
+window.config.update(theme='visualizer',visualizer=True);window.apply_theme();QTest.qWait(500);measure('visualizer_visible')
 window.hide();QTest.qWait(200);measure('playing_in_background')
 window.engine.stop();print('Local performance complete',flush=True)
 try:

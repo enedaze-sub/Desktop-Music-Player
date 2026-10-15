@@ -31,12 +31,22 @@
   },
   {
     "id": "visualizer",
-    "name": "비주얼라이저 · Visualizer",
+    "name": "민트 네온 · Mint Neon",
     "bg": "#07090D",
     "panel": "#0E1218",
     "text": "#E6FFF7",
     "muted": "#7F9A93",
     "accent": "#3EF0C0",
     "border": "#1E2A2E"
+  },
+  {
+    "id": "custom",
+    "name": "커스텀 · 나만의 테마",
+    "bg": "#EFE6D6",
+    "panel": "#FAF5EC",
+    "text": "#2B2118",
+    "muted": "#6B5B49",
+    "accent": "#C2562B",
+    "border": "#CFC0A8"
   }
 ]

@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt,QTimer,QThreadPool,QUrl,QPropertyAnimation,QEasing
 from PySide6.QtGui import QFont,QColor,QDesktopServices,QAction,QIcon,QPainter,QPixmap,QImage,QShortcut,QKeySequence,QFontDatabase
 from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QFrame,QLabel,QPushButton,QVBoxLayout,QHBoxLayout,QGridLayout,
  QSizePolicy,QSlider,QLineEdit,QListView,QTabWidget,QComboBox,QFileDialog,QInputDialog,QMessageBox,QDialog,QFormLayout,QCheckBox,
- QSizeGrip,QSystemTrayIcon,QMenu,QAbstractItemView,QDialogButtonBox,QSpinBox,QColorDialog,QTextEdit,QPlainTextEdit,QAbstractSpinBox)
+ QSizeGrip,QSystemTrayIcon,QMenu,QAbstractItemView,QDialogButtonBox,QSpinBox,QTextEdit,QPlainTextEdit,QAbstractSpinBox)
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtNetwork import QLocalServer,QLocalSocket
 from .core import Track,Queue,scan_library,app_root,AUDIO,VIDEO,playlist_id
@@ -17,6 +17,7 @@ from .widgets import Surface,Artwork,Spectrum,DragBar,TrackDelegate,Deck,LCDFram
 from .icons import icon
 from . import youtube
 from .covers import CoverCache
+from .palettes import resolve_theme,lcd_colors
 from .background_editor import BackgroundEditor
 
 def resource(name):return Path(getattr(sys,'_MEIPASS',app_root()))/name
@@ -97,7 +98,7 @@ class Window(QMainWindow):
         self.make_library();self.make_queue();self.make_playlists();self.make_video_page()
         self.tabs.currentChanged.connect(self.tab_changed)
         self.footer=QWidget(self.surface);bottom=QHBoxLayout(self.footer);bottom.setContentsMargins(0,0,0,0);self.counter=QLabel('LOCAL LIBRARY');self.counter.setObjectName('brand');bottom.addWidget(self.counter);bottom.addStretch();self.grip=QSizeGrip(self);self.grip.setFixedSize(14,14);bottom.addWidget(self.grip)
-        self.spectrum=Spectrum(self.lcd);self.spectrum.hide();self.spectrum.setFixedHeight(24);lcd.addWidget(self.spectrum)
+        self.spectrum=Spectrum(self.lcd);self.spectrum.hide();self.spectrum.setFixedHeight(40);lcd.addWidget(self.spectrum)
         self.engine.changed.connect(self.update_transport);self.engine.ended.connect(lambda:self.next(automatic=True));self.engine.message.connect(self.tell);self.engine.spectrum.connect(self.spectrum.accept)
         self.tick=QTimer(self);self.tick.setInterval(500);self.tick.timeout.connect(self.position_tick);self.tick.start()
         self.filter_timer=QTimer(self);self.filter_timer.setSingleShot(True);self.filter_timer.setInterval(220);self.filter_timer.timeout.connect(self.apply_filter)
@@ -477,18 +478,13 @@ class Window(QMainWindow):
         dialog=BackgroundEditor(self);dialog.exec();dialog.deleteLater()
     def set_background(self,path):
         self.config['background']=path;self.store.set('background',path);self.apply_background(self.config)
-    def choose_accent(self):
-        color=QColorDialog.getColor(QColor(self.theme['accent']),self,'강조색')
-        if color.isValid():self.set_accent(color.name())
-    def set_accent(self,color):self.config['accent']=color;self.store.set('accent',color);self.apply_theme()
     def play_ink(self):
         color=QColor(self.theme['accent'])
         channels=[x/12.92 if x<=.04045 else ((x+.055)/1.055)**2.4 for x in (color.redF(),color.greenF(),color.blueF())]
         luminance=sum(x*w for x,w in zip(channels,(.2126,.7152,.0722)))
         return '#10202B' if luminance>.18 else '#FFFFFF'
     def apply_theme(self):
-        self.theme=dict(next((t for t in self.themes if t['id']==self.config['theme']),self.themes[0]))
-        if self.config.get('accent'):self.theme['accent']=self.config['accent']
+        self.theme=resolve_theme(self.config,self.themes)
         signature=(tuple(sorted(self.theme.items())),self.ui_scale)
         if getattr(self,'_theme_signature',None)==signature:
             self.apply_background(self.config);self.visual_state();return
@@ -503,8 +499,8 @@ class Window(QMainWindow):
             view.viewport().update()
         dark=QColor(t['panel']).lightness()<120;foreground='#081016' if QColor(t['accent']).lightness()>130 else '#FFFFFF'
         base_style=f'''QWidget{{font-family:'NanumSquareRound','Malgun Gothic','Segoe UI Symbol';font-size:12px;color:{t['text']};}} QMainWindow,QDialog{{background:{t['bg']};}} QLabel{{background:transparent;}} QLabel#brand{{font-size:11px;font-weight:700;color:{t['muted']};}} QLabel#muted,QLabel#status{{color:{t['muted']};}} QLabel#status{{font-size:11px;}} QLabel#trackTitle{{font-size:14px;font-weight:700;}} QLabel#time{{font-family:'NanumSquareRound','Malgun Gothic';font-size:12px;}} QLabel#badge{{font-size:10px;font-weight:700;color:{t['muted']};}} QFrame#lcd{{background:{t['panel']};border:1px solid {t['border']};border-radius:10px;}} QFrame#pad{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {QColor(t['panel']).lighter(108).name()},stop:1 {QColor(t['bg']).darker(106).name()});border:1px solid {t['border']};border-radius:66px;}} QFrame#drawer{{background:{t['panel']};border:1px solid {t['border']};border-radius:10px;}} QPushButton{{background:transparent;border:1px solid transparent;border-radius:7px;padding:4px 6px;}} QPushButton:hover{{background:{t['panel']};border-color:{t['border']};}} QPushButton[iconOnly="true"]:hover{{border-color:transparent;}} QPushButton[keyboardFocus="true"]:focus{{border:1px solid {t['accent']};}} QPushButton[active="true"]{{color:{t['accent']};font-weight:700;}} QPushButton#play{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {QColor(t['accent']).lighter(114).name()},stop:1 {QColor(t['accent']).darker(110).name()});border:1px solid {QColor(t['accent']).darker(125).name()};border-radius:28px;}} QPushButton#play:pressed{{background:{QColor(t['accent']).darker(118).name()};}} QLineEdit,QComboBox,QAbstractSpinBox{{background:{t['panel']};border:1px solid {t['border']};border-radius:6px;padding:6px;}} QAbstractSpinBox QLineEdit{{background:transparent;border:0;border-radius:0;padding:0;}} QListView{{background:transparent;border:0;outline:0;}} QListView::item{{padding:7px 9px;border-bottom:1px solid {t['border']};}} QListView::item:selected{{background:{t['bg']};color:{t['text']};border-left:3px solid {t['accent']};}} QTabWidget::pane{{border:0;}} QTabBar::tab{{background:transparent;padding:8px 10px;color:{t['muted']};border-bottom:2px solid transparent;}} QTabBar::tab:selected{{color:{t['text']};border-bottom:2px solid {t['accent']};}} QSlider::groove:horizontal{{height:3px;background:{t['border']};border-radius:1px;}} QSlider::sub-page:horizontal{{background:{t['accent']};}} QSlider::handle:horizontal{{background:{t['accent']};width:9px;margin:-4px 0;border-radius:4px;}} QScrollBar:vertical{{background:transparent;width:7px;}} QScrollBar::handle:vertical{{background:{t['border']};border-radius:3px;min-height:24px;}} QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{{height:0;}} QMenu{{background:{t['panel']};padding:5px;}}'''
-        lcd_colors={'silver_blue':('#2B66C4','#0F3373','#EEF5FF','#A9C3EA','#8A97AA'),'midnight':('#10284F','#07132A','#DCE9FF','#8FA6CC','#243E62'),'warm_cream':('#3C6E86','#1C3B4B','#F6EEDF','#BFD3D9','#819A9E'),'visualizer':('#06191D','#020A0C','#E6FFF7','#86A8A0','#224B45')}
-        a,b,text,muted,border=lcd_colors[t['id']]
+        a,b,text,muted,border=lcd_colors(t)
+        self.spectrum.background=b
         lcd_style=f"QFrame#lcd{{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {a},stop:1 {b});border:2px solid {border};border-radius:12px;}} QFrame#lcd QLabel{{color:{text};}} QFrame#lcd QLabel#muted,QFrame#lcd QLabel#badge{{color:{muted};}}"
         base_style+=f"QFrame#navRail{{background:{t['bg']};border:1px solid {t['border']};border-radius:10px;}} QPushButton[nav=\"true\"]{{padding:4px 2px;font-size:12px;}} QPushButton[nav=\"true\"][active=\"true\"]{{background:{t['panel']};border:1px solid {t['border']};}}"
         self.base_theme_style=base_style
@@ -515,8 +511,12 @@ class Window(QMainWindow):
         self.sync_nav(force=True)
         self.visual_state()
     def visual_state(self):
-        enabled=(self.config['visualizer'] or self.config['theme']=='visualizer') and self.isVisible() and not self.isMinimized()
-        visual_theme=self.config['visualizer'] or self.config['theme']=='visualizer'
+        visual_theme=bool(self.config['visualizer'])
+        enabled=visual_theme and self.isVisible() and not self.isMinimized()
+        self.spectrum.set_style(self.config.get('visualizer_style','bars'))
+        self.title.lines=1 if visual_theme else 2
+        title_height=self.px(18 if visual_theme else 42)
+        if self.title.height()!=title_height:self.title.setFixedHeight(title_height)
         self.artist.setVisible(not visual_theme)
         self.spectrum.setVisible(visual_theme);self.spectrum.set_active(enabled and self.engine.playing());self.engine.set_visualizer(enabled)
     def build_tray(self):
@@ -562,7 +562,7 @@ def main():
             wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(22050)
             wav.writeframes(b''.join(struct.pack('<h',int(5000*math.sin(2*math.pi*440*i/22050))) for i in range(44100)))
         test=Window(Store(folder),demo=True);test.engine.audio.setMuted(True);test.show()
-        test.config['theme']='visualizer';test.apply_theme();test.engine.play_track(Track('Playback self-test',str(file)))
+        test.config.update(theme='visualizer',visualizer=True);test.apply_theme();test.engine.play_track(Track('Playback self-test',str(file)))
         frames=[];test.engine.spectrum.connect(lambda value:frames.append(value))
         def finish_test():
             result={'position_ms':test.engine.player.position(),'spectrum_frames':len(frames),'themes':len(test.themes),'font_family':app.font().family(),'bold_available':'Bold' in QFontDatabase.styles(app.font().family())}
@@ -581,6 +581,18 @@ def main():
                 loop=QEventLoop();QTimer.singleShot(ms,loop.quit);loop.exec()
             cover=QImage(256,256,QImage.Format_RGB32);cover.fill(QColor('#be7243'));cover.save(str(folder/'cover.png'));test.covers.enabled=True;test.refresh_cover();wait(350)
             result['asynchronous_album_cover']=test.art.pixmap.toImage().pixelColor(128,128).name()=='#be7243'
+            if '--test-appearance' in sys.argv:
+                from .palettes import COLOR_LABELS,STYLES
+                original=json.dumps(test.config,sort_keys=True);editor=SettingsEditor(test);editor.show();presets=True;styles=True
+                for i,theme in enumerate(test.themes):
+                    editor.themes.setCurrentIndex(i);editor.apply_preview();wait(80);presets=presets and editor.preview.theme['id']==theme['id'];editor.grab().save(str(folder/('theme-'+theme['id']+'.png')))
+                colors=dict(zip(COLOR_LABELS,('#211A23','#342635','#FFF4EB','#C7AEBE','#F6AF70','#7E546C')))
+                for key,value in colors.items():editor.set_color(key,value)
+                editor.visual.setChecked(True)
+                for key in STYLES:
+                    editor.visual_style.setCurrentIndex(editor.visual_style.findData(key));editor.apply_preview();wait(100);styles=styles and editor.preview.spectrum.style_name==key and test.spectrum.style_name==key;editor.grab().save(str(folder/('spectrum-'+key+'.png')))
+                custom=all(test.theme[key]==value and editor.preview.theme[key]==value for key,value in colors.items());editor.reject();stopped=not editor.preview.timer.isActive();editor.deleteLater()
+                result['appearance_customization']={'preset_previews':presets,'custom_colors_live':custom,'four_spectrum_styles':styles,'cancel_restored':json.dumps(test.config,sort_keys=True)==original,'preview_timer_stopped':stopped}
             if '--test-video' in sys.argv:
                 video_file=Path(sys.argv[sys.argv.index('--test-video')+1]).resolve();test.engine.play_track(Track('Local video self-test',str(video_file)));wait(700);test.engine.player.pause();test.engine.seek_to(1500);wait(70);video_source=test.engine.player.source();position=test.engine.player.position();test.expand('영상');test.finish_transition();wait(800)
                 result['local_video']={'frame_rendered':not test.video_widget.image.isNull(),'paused_position_preserved':abs(test.engine.player.position()-position)<80,'audio_source_unchanged':test.engine.player.source()==video_source,'companion_muted':test.engine.video_audio.isMuted() if test.engine.video_player else False}
@@ -608,7 +620,7 @@ def main():
                 test.engine.recover_audio();recovered=ready_after(checkpoint)
                 result['youtube_recovery']={'initial_cached_audio_played':ready and local,'resumed_at_saved_position':recovered,'recovery_uses_cached_file':test.engine.player.source().isLocalFile(),'no_media_error':test.engine.player.error()==QMediaPlayer.NoError}
             result['passed']=result['position_ms']>500 and result['spectrum_frames']>1 and result['font_family']=='NanumSquareRound' and result['bold_available'] and all(result[key] for key in ('appearance_live_preview','appearance_cancel_restored','expanded_background_preview','appearance_source_unchanged'))
-            result['passed']=result['passed'] and result['asynchronous_album_cover'] and all(result.get('local_video',{}).values()) and all(result.get('youtube_recovery',{}).values()) and result.get('youtube_search',{}).get('passed',True)
+            result['passed']=result['passed'] and result['asynchronous_album_cover'] and all(result.get('local_video',{}).values()) and all(result.get('youtube_recovery',{}).values()) and result.get('youtube_search',{}).get('passed',True) and all(result.get('appearance_customization',{}).values())
             (folder/'report.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
             test.grab().save(str(folder/'screen.png'));test.engine.stop();test.hide();test.deleteLater();QTimer.singleShot(250,app.quit)
         QTimer.singleShot(1300,finish_test)

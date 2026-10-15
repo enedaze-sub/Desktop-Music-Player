@@ -1,6 +1,6 @@
 {
   "date": "2026-10-15",
-  "unit_tests_passed": 76,
+  "unit_tests_passed": 84,
   "ui": {
     "font_family": "NanumSquareRound",
     "font_styles": [
@@ -12,16 +12,16 @@
       54,
       54
     ],
-    "screenshots": 8,
+    "screenshots": 10,
     "minimum_width_nav_fits": true,
     "playback_position_ms": 1578,
-    "spectrum_frames": 17,
+    "spectrum_frames": 18,
     "hidden_visualizer_stopped": true
   },
   "native_executable": {
     "position_ms": 1114,
     "spectrum_frames": 14,
-    "themes": 4,
+    "themes": 5,
     "font_family": "NanumSquareRound",
     "bold_available": true,
     "appearance_live_preview": true,
@@ -29,6 +29,13 @@
     "expanded_background_preview": true,
     "appearance_source_unchanged": true,
     "asynchronous_album_cover": true,
+    "appearance_customization": {
+      "preset_previews": true,
+      "custom_colors_live": true,
+      "four_spectrum_styles": true,
+      "cancel_restored": true,
+      "preview_timer_stopped": true
+    },
     "local_video": {
       "frame_rendered": true,
       "paused_position_preserved": true,
@@ -37,15 +44,15 @@
       "decoder_released_when_closed": true
     },
     "youtube_search": {
-      "first_page_seconds": 1.094,
-      "next_page_seconds": 0.828,
+      "first_page_seconds": 1.187,
+      "next_page_seconds": 0.688,
       "cached_previous_seconds": 0.062,
       "first_page_count": 10,
       "next_page_count": 10,
       "passed": true
     },
     "passed": true,
-    "tested_version": "0.1.8"
+    "tested_version": "0.1.9"
   },
   "youtube_video": [
     {
@@ -136,7 +143,7 @@
     ],
     "alpha_zero_click_through_prevented": true
   },
-  "appearance_iteration": "0.1.8",
+  "appearance_iteration": "0.1.9",
   "appearance_editor": {
     "settings_size": [
       544,
@@ -384,6 +391,59 @@
       "first_page_count": 10,
       "next_page_count": 10,
       "passed": true
+    }
+  },
+  "custom_appearance": {
+    "spectrum_paint": {
+      "bars": {
+        "median_ms": 0.093,
+        "p95_ms": 0.155
+      },
+      "led": {
+        "median_ms": 0.175,
+        "p95_ms": 0.349
+      },
+      "mirror": {
+        "median_ms": 0.099,
+        "p95_ms": 0.164
+      },
+      "line": {
+        "median_ms": 0.372,
+        "p95_ms": 0.48
+      }
+    },
+    "settings_preview_in_dialog": true,
+    "styles": [
+      "bars",
+      "led",
+      "mirror",
+      "line"
+    ],
+    "fft_analysis": {
+      "median_ms": 0.073,
+      "p95_ms": 0.087
+    },
+    "render_rate_limit_fps": 20,
+    "six_colors_persist_and_cancel": true,
+    "hex_validation": true,
+    "five_theme_previews": true,
+    "native_theme_id_preserved_on_rename": true,
+    "visualizer_independent_of_theme": true,
+    "minimum_spectrum_height_px": 20,
+    "base_spectrum_height_px": 40,
+    "maximum_spectrum_plot_width_at_100_percent": 620,
+    "width_and_scale_layout_tested": {
+      "widths": [
+        560,
+        900,
+        1600
+      ],
+      "scales": [
+        0.5,
+        0.8,
+        1,
+        1.5
+      ]
     }
   }
 }
