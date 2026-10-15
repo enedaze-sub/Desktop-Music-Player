@@ -42,7 +42,10 @@ class SearchSession:
     def _iter_tracks(self):
         opts=options();opts.update(extract_flat=True,lazy_playlist=True,noplaylist=True)
         with yt_dlp.YoutubeDL(opts) as ydl:
-            info=ydl.extract_info('ytsearchall:'+self.query.split(':',1)[1],download=False)
+            # lazy_playlist still processes every entry before extract_info returns.
+            # Keep the extractor's raw iterator so only this page + one lookahead
+            # is consumed; continuation requests happen on the next page.
+            info=ydl.extract_info('ytsearchall:'+self.query.split(':',1)[1],download=False,process=False)
             for entry in (info or {}).get('entries') or []:
                 if self._cancelled.is_set():return
                 track=entry_track(entry)

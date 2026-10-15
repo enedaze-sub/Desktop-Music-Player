@@ -19,7 +19,24 @@ class SearchPagesTests(unittest.TestCase):
    factory.return_value.__enter__.return_value=fake;s=youtube.SearchSession('Song')
    a=s.get_page(0);self.assertEqual(len(consumed),11);self.assertEqual(len(a['tracks']),10);self.assertTrue(a['has_more'])
    b=s.get_page(1);self.assertEqual(len(consumed),21);self.assertEqual(b['tracks'][0].title,'Song 10');self.assertEqual(s.get_page(0),a);self.assertEqual(len(consumed),21)
-   c=s.get_page(2);self.assertEqual(len(c['tracks']),5);self.assertFalse(c['has_more']);fake.extract_info.assert_called_once_with('ytsearchall:Song',download=False);self.assertTrue(factory.call_args.args[0]['lazy_playlist']);s.close()
+   c=s.get_page(2);self.assertEqual(len(c['tracks']),5);self.assertFalse(c['has_more']);fake.extract_info.assert_called_once_with('ytsearchall:Song',download=False,process=False);self.assertTrue(factory.call_args.args[0]['lazy_playlist']);s.close()
+ def test_real_ytdlp_keeps_unvisited_search_results_lazy(self):
+  # Exercise the actual yt-dlp processing boundary: mocking extract_info hid
+  # its eager playlist processing even with lazy_playlist=True.
+  from yt_dlp.extractor.youtube import YoutubeSearchIE
+  consumed=[]
+  def entries(*_):
+   for i in range(100):
+    consumed.append(i)
+    if len(consumed)>21:raise AssertionError('Fetched unrequested search results')
+    yield {'_type':'url','ie_key':'Youtube','id':f'{i:011d}','title':f'Song {i}','url':f'https://www.youtube.com/watch?v={i:011d}'}
+  with patch.object(YoutubeSearchIE,'_search_results',entries):
+   s=youtube.SearchSession('Song')
+   try:
+    first=s.get_page(0);self.assertEqual(len(first['tracks']),10);self.assertEqual(len(consumed),11)
+    second=s.get_page(1);self.assertEqual(len(second['tracks']),10);self.assertEqual(len(consumed),21)
+    self.assertEqual(s.get_page(0),first);self.assertEqual(len(consumed),21)
+   finally:s.close()
  def test_deleted_live_invalid_and_duplicate_entries_are_skipped(self):
   entries=[None,{'id':'bad'},{'id':'00000000001','title':'[Private video]'},{'id':'00000000002','is_live':True},{'id':'00000000003','title':'Song'},{'id':'00000000003','title':'Duplicate'}]
   fake=Mock();fake.extract_info.return_value={'entries':iter(entries)}

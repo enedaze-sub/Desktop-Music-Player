@@ -585,6 +585,17 @@ def main():
                 video_file=Path(sys.argv[sys.argv.index('--test-video')+1]).resolve();test.engine.play_track(Track('Local video self-test',str(video_file)));wait(700);test.engine.player.pause();test.engine.seek_to(1500);wait(70);video_source=test.engine.player.source();position=test.engine.player.position();test.expand('영상');test.finish_transition();wait(800)
                 result['local_video']={'frame_rendered':not test.video_widget.image.isNull(),'paused_position_preserved':abs(test.engine.player.position()-position)<80,'audio_source_unchanged':test.engine.player.source()==video_source,'companion_muted':test.engine.video_audio.isMuted() if test.engine.video_player else False}
                 test.expand('영상');test.finish_transition();result['local_video']['decoder_released_when_closed']=test.engine.video_player.source().isEmpty() if test.engine.video_player else False
+            if '--test-search' in sys.argv:
+                test.change_source('youtube');test.expand('보관함');test.finish_transition();test.search_box.setText('lofi music')
+                def await_search():
+                    deadline=time.monotonic()+30
+                    while test.youtube_loading and time.monotonic()<deadline:wait(50)
+                    return not test.youtube_loading
+                start=time.monotonic();test.search();first_ready=await_search();first_seconds=time.monotonic()-start;first=list(test.youtube_results)
+                start=time.monotonic();test.load_youtube_page(1);next_ready=await_search();next_seconds=time.monotonic()-start;second=list(test.youtube_results)
+                start=time.monotonic();test.load_youtube_page(0);back_ready=await_search();back_seconds=time.monotonic()-start
+                result['youtube_search']={'first_page_seconds':round(first_seconds,3),'next_page_seconds':round(next_seconds,3),'cached_previous_seconds':round(back_seconds,3),'first_page_count':len(first),'next_page_count':len(second),
+                    'passed':first_ready and next_ready and back_ready and len(first)==10 and len(second)==10 and len({t.key for t in first+second})==20 and test.youtube_results==first and test.youtube_page==0}
             if '--test-youtube' in sys.argv:
                 uri=sys.argv[sys.argv.index('--test-youtube')+1];track=Track('YouTube recovery self-test',uri,'youtube');test.queue.replace([track]);test.queue.select(0);test.engine.play_track(track,position=50000)
                 def ready_after(position):
@@ -597,7 +608,7 @@ def main():
                 test.engine.recover_audio();recovered=ready_after(checkpoint)
                 result['youtube_recovery']={'initial_cached_audio_played':ready and local,'resumed_at_saved_position':recovered,'recovery_uses_cached_file':test.engine.player.source().isLocalFile(),'no_media_error':test.engine.player.error()==QMediaPlayer.NoError}
             result['passed']=result['position_ms']>500 and result['spectrum_frames']>1 and result['font_family']=='NanumSquareRound' and result['bold_available'] and all(result[key] for key in ('appearance_live_preview','appearance_cancel_restored','expanded_background_preview','appearance_source_unchanged'))
-            result['passed']=result['passed'] and result['asynchronous_album_cover'] and all(result.get('local_video',{}).values()) and all(result.get('youtube_recovery',{}).values())
+            result['passed']=result['passed'] and result['asynchronous_album_cover'] and all(result.get('local_video',{}).values()) and all(result.get('youtube_recovery',{}).values()) and result.get('youtube_search',{}).get('passed',True)
             (folder/'report.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
             test.grab().save(str(folder/'screen.png'));test.engine.stop();test.hide();test.deleteLater();QTimer.singleShot(250,app.quit)
         QTimer.singleShot(1300,finish_test)

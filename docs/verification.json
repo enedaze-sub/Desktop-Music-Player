@@ -1,6 +1,6 @@
 {
   "date": "2026-10-15",
-  "unit_tests_passed": 75,
+  "unit_tests_passed": 76,
   "ui": {
     "font_family": "NanumSquareRound",
     "font_styles": [
@@ -36,13 +36,16 @@
       "companion_muted": true,
       "decoder_released_when_closed": true
     },
-    "youtube_recovery": {
-      "initial_cached_audio_played": true,
-      "resumed_at_saved_position": true,
-      "recovery_uses_cached_file": true,
-      "no_media_error": true
+    "youtube_search": {
+      "first_page_seconds": 1.094,
+      "next_page_seconds": 0.828,
+      "cached_previous_seconds": 0.062,
+      "first_page_count": 10,
+      "next_page_count": 10,
+      "passed": true
     },
-    "passed": true
+    "passed": true,
+    "tested_version": "0.1.8"
   },
   "youtube_video": [
     {
@@ -133,7 +136,7 @@
     ],
     "alpha_zero_click_through_prevented": true
   },
-  "appearance_iteration": "0.1.7",
+  "appearance_iteration": "0.1.8",
   "appearance_editor": {
     "settings_size": [
       544,
@@ -316,5 +319,71 @@
     "cache_age_hours": 24,
     "signed_urls_excluded_from_cache_metadata": true,
     "normal_queue_end_does_not_restart_playback": true
+  },
+  "youtube_search_latency": {
+    "cause": "yt-dlp playlist processing consumed unvisited search entries before returning despite lazy_playlist=True",
+    "fix": "extract_info(process=False) retains the extractor iterator; consume page size plus one lookahead",
+    "same_query_first_page_before_seconds": 19.031,
+    "same_query_first_page_after_seconds": 1.079,
+    "next_page_after_seconds": 0.734,
+    "real_ytdlp_regression_test": true,
+    "live_pagination": {
+      "pages": [
+        {
+          "page": 1,
+          "count": 10,
+          "seconds": 1.078,
+          "has_more": true
+        },
+        {
+          "page": 2,
+          "count": 10,
+          "seconds": 0.828,
+          "has_more": true
+        },
+        {
+          "page": 3,
+          "count": 10,
+          "seconds": 0.0,
+          "has_more": true
+        },
+        {
+          "page": 4,
+          "count": 10,
+          "seconds": 0.641,
+          "has_more": true
+        },
+        {
+          "page": 5,
+          "count": 10,
+          "seconds": 0.0,
+          "has_more": true
+        },
+        {
+          "page": 6,
+          "count": 10,
+          "seconds": 0.437,
+          "has_more": true
+        },
+        {
+          "page": 7,
+          "count": 10,
+          "seconds": 0.016,
+          "has_more": true
+        }
+      ],
+      "unique_results": 70,
+      "cached_previous_seconds": 0.0,
+      "passed": true
+    },
+    "regression_test_rejects_previous_behavior": true,
+    "frozen_executable": {
+      "first_page_seconds": 1.094,
+      "next_page_seconds": 0.828,
+      "cached_previous_seconds": 0.062,
+      "first_page_count": 10,
+      "next_page_count": 10,
+      "passed": true
+    }
   }
 }
