@@ -1,6 +1,6 @@
 {
   "date": "2026-10-15",
-  "unit_tests_passed": 39,
+  "unit_tests_passed": 60,
   "ui": {
     "font_family": "NanumSquareRound",
     "font_styles": [
@@ -14,7 +14,7 @@
     ],
     "screenshots": 8,
     "minimum_width_nav_fits": true,
-    "playback_position_ms": 1393,
+    "playback_position_ms": 1578,
     "spectrum_frames": 17,
     "hidden_visualizer_stopped": true
   },
@@ -28,6 +28,14 @@
     "appearance_cancel_restored": true,
     "expanded_background_preview": true,
     "appearance_source_unchanged": true,
+    "asynchronous_album_cover": true,
+    "local_video": {
+      "frame_rendered": true,
+      "paused_position_preserved": true,
+      "audio_source_unchanged": true,
+      "companion_muted": true,
+      "decoder_released_when_closed": true
+    },
     "passed": true
   },
   "youtube_video": [
@@ -119,7 +127,7 @@
     ],
     "alpha_zero_click_through_prevented": true
   },
-  "appearance_iteration": "0.1.5",
+  "appearance_iteration": "0.1.6",
   "appearance_editor": {
     "settings_size": [
       544,
@@ -231,5 +239,41 @@
       1.5
     ],
     "minimum_maximum_signed_decimal_percent_values_fit": true
+  },
+  "local_video": {
+    "audio_only_position_ms": 580,
+    "video_decoder_inactive_when_collapsed": true,
+    "frame_while_audio_paused": true,
+    "paused_position_preserved": true,
+    "audio_source_unchanged": true,
+    "companion_muted": true,
+    "primary_video_track_disabled": true,
+    "close_preserves_audio_and_releases_video": true,
+    "passed": true
+  },
+  "youtube_search_pagination": {
+    "live_pages_verified": 7,
+    "page_size": 10,
+    "visited_page_cache_verified": true,
+    "duplicate_ids_filtered": true,
+    "stale_results_and_local_view_guarded": true
+  },
+  "artwork": {
+    "embedded_cover_before_folder_verified": true,
+    "no_image_falls_back_to_original_disc": true,
+    "real_youtube_thumbnail_loaded": true,
+    "worker_thread_loading_verified": true,
+    "cache_entries_limit": 96,
+    "decoded_size": [
+      256,
+      256
+    ]
+  },
+  "queue_editing": {
+    "native_windows_drag_verified": true,
+    "current_track_preserved": true,
+    "previous_history_preserved": true,
+    "duplicate_occurrence_selection_preserved": true,
+    "context_playlist_append_multiselection_verified": true
   }
 }

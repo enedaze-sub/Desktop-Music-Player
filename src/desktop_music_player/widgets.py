@@ -127,8 +127,8 @@ class DragBar(QFrame):
 
 
 class TrackDelegate(QStyledItemDelegate):
-    def __init__(self,parent=None):
-        super().__init__(parent);self.theme={'text':'#18212C','muted':'#566273','accent':'#E8780F','bg':'#D9DFE6','border':'#9CA8B7'}
+    def __init__(self,parent=None,covers=None):
+        super().__init__(parent);self.covers=covers;self.theme={'text':'#18212C','muted':'#566273','accent':'#E8780F','bg':'#D9DFE6','border':'#9CA8B7'}
         self.cover=QPixmap(str(Path(getattr(sys,'_MEIPASS',app_root()))/'assets'/'default-cover.png'))
     def sizeHint(self,option,index):
         from PySide6.QtCore import QSize
@@ -139,9 +139,10 @@ class TrackDelegate(QStyledItemDelegate):
         p.save();p.setRenderHint(QPainter.Antialiasing);scale=float(self.parent().property('uiScale') or 1);p.translate(option.rect.topLeft());p.scale(scale,scale);r=QRect(0,0,round(option.rect.width()/scale),round(option.rect.height()/scale));t=self.theme
         if option.state & QStyle.State_Selected:
             color=QColor(t['accent']);color.setAlpha(22);p.fillRect(r,color);p.fillRect(r.x(),r.y()+5,3,r.height()-10,QColor(t['accent']))
-        image=QRectF(r.x()+10,r.y()+10,34,34);path=QPainterPath();path.addRoundedRect(image,6,6);p.save();p.setClipPath(path);p.drawPixmap(image.toRect(),self.cover);p.restore()
+        image=QRectF(r.x()+10,r.y()+10,34,34);path=QPainterPath();path.addRoundedRect(image,6,6);p.save();p.setClipPath(path);p.drawPixmap(image.toRect(),self.covers.get(track) if self.covers else self.cover);p.restore()
         x=r.x()+55;right=r.right()-12;titlefont=p.font();titlefont.setPixelSize(13);titlefont.setBold(False);p.setFont(titlefont);p.setPen(QColor(t['text']))
-        title=p.fontMetrics().elidedText(track.title,Qt.ElideRight,max(10,right-x));p.drawText(QRectF(x,r.y()+7,right-x,21),Qt.AlignVCenter,title)
+        status=index.data(Qt.UserRole+1);title_text=(status+'  ·  ' if status else '')+track.title
+        title=p.fontMetrics().elidedText(title_text,Qt.ElideRight,max(10,right-x));p.drawText(QRectF(x,r.y()+7,right-x,21),Qt.AlignVCenter,title)
         meta=(track.artist or track.album or '내 음악');meta=('YOUTUBE' if track.kind=='youtube' else 'LOCAL')+'  ·  '+meta
         font=p.font();font.setPixelSize(11);p.setFont(font);p.setPen(QColor(t['muted']));meta=p.fontMetrics().elidedText(meta,Qt.ElideRight,max(10,right-x));p.drawText(QRectF(x,r.y()+29,right-x,16),Qt.AlignVCenter,meta)
         p.setPen(QColor(t['border']));p.drawLine(r.x()+55,r.bottom(),r.right()-10,r.bottom());p.restore()

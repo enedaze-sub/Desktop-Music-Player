@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 AUDIO={'.mp3','.flac','.wav','.m4a','.ogg','.opus','.aac','.wma','.aiff'}
-VIDEO={'.mp4','.mkv','.webm','.mov'}
+VIDEO={'.mp4','.mkv','.webm','.mov','.m4v','.avi','.mpg','.mpeg'}
 def app_root():
     return Path(sys.executable).parent if getattr(sys,'frozen',False) else Path(__file__).resolve().parents[2]
 @dataclass
@@ -38,7 +38,7 @@ def scan_library(roots):
                     for entry in entries:
                         if entry.is_symlink():continue
                         if entry.is_dir(follow_symlinks=False):pending.append(Path(entry.path))
-                        elif entry.is_file() and Path(entry.name).suffix.lower() in AUDIO:
+                        elif entry.is_file() and Path(entry.name).suffix.lower() in AUDIO|VIDEO:
                             path=Path(os.path.abspath(entry.path)); key=os.path.normcase(str(path))
                             if key in seen:continue
                             seen.add(key)
@@ -85,6 +85,12 @@ class Queue:
         self.history=[n-(n>index) for n in self.history if n!=index]
         self.bag=[n-(n>index) for n in self.bag if n!=index]
         return current_removed
+    def move(self,rows,destination):
+        rows=sorted(set(rows))
+        if not rows or any(row<0 or row>=len(self.tracks) for row in rows) or not 0<=destination<=len(self.tracks):return False
+        chosen=set(rows);order=[row for row in range(len(self.tracks)) if row not in chosen];target=destination-sum(row<destination for row in rows);order[target:target]=rows
+        if order==list(range(len(self.tracks))):return False
+        positions={old:new for new,old in enumerate(order)};self.tracks=[self.tracks[row] for row in order];self.index=positions.get(self.index,-1);self.history=[positions[row] for row in self.history];self.bag=[positions[row] for row in self.bag];return True
     def set_shuffle(self,value):
         self.shuffle=value;self.bag=[n for n in range(len(self.tracks)) if n!=self.index]
     def replace(self,tracks):

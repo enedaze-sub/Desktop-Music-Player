@@ -7,9 +7,9 @@ from desktop_music_player.storage import Store
 class CoreTests(unittest.TestCase):
     def test_scan_deduplicates_and_ignores_non_audio(self):
         with tempfile.TemporaryDirectory() as d:
-            root=Path(d);(root/'sub').mkdir();(root/'sub'/'song.MP3').touch();(root/'cover.jpg').touch()
+            root=Path(d);(root/'sub').mkdir();(root/'sub'/'song.MP3').touch();(root/'cover.jpg').touch();(root/'clip.MP4').touch();(root/'sub'/'movie.mkv').touch()
             files=scan_library([root,root/'sub'])
-            self.assertEqual(len(files),1);self.assertEqual(files[0].title,'song')
+            self.assertEqual([t.title for t in files],['clip','movie','song']);self.assertTrue(all(t.kind=='local' for t in files))
     def test_shuffle_no_repeats_and_repeat_cycles(self):
         q=Queue([Track(str(n),str(n)) for n in range(4)]);q.set_shuffle(True)
         heard=[q.next().uri for _ in range(4)]

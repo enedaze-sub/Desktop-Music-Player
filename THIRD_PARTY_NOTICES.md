@@ -7,6 +7,7 @@ This project uses the following components. Consult their bundled notices and up
 - yt-dlp: https://github.com/yt-dlp/yt-dlp
 - yt-dlp-ejs: https://github.com/yt-dlp/ejs
 - Deno: https://github.com/denoland/deno
+- Mutagen: https://github.com/quodlibet/mutagen — GPL-2.0-or-later; source and bundled license: licenses/mutagen-COPYING.txt.
 - NumPy: https://numpy.org/
 - Python: https://www.python.org/
 

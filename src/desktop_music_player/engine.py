@@ -8,6 +8,7 @@ from PySide6.QtCore import QObject, QUrl, Signal, Slot, QThreadPool, QTimer
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QAudioBufferOutput, QAudioFormat, QVideoFrame
 from .jobs import Job
 from .youtube import resolve
+from .core import VIDEO
 
 log = logging.getLogger('player.media')
 
@@ -96,8 +97,9 @@ class Engine(QObject):
                 self.message.emit('음악 파일을 찾을 수 없습니다. 폴더 경로를 확인하세요.')
                 self.changed.emit()
                 return
-            self.player.setVideoSink(self.video_widget.videoSink() if video and self.video_visible and self.video_widget else None)
+            self.player.setVideoSink(None)
             self.set_audio_source(QUrl.fromLocalFile(track.uri))
+            if video and self.video_visible:self.load_local_video()
             self.changed.emit()
             return
         self.player.setVideoSink(None)
@@ -209,8 +211,7 @@ class Engine(QObject):
         if not enabled or not self.track or not self.video_visible:
             return
         if self.track.kind == 'local':
-            self.player.setVideoSink(self.video_widget.videoSink())
-            self.video_widget.set_message('현재 곡은 오디오 파일입니다.' if Path(self.track.uri).suffix.lower() not in {'.mp4','.mkv','.webm','.mov'} else '영상을 준비하고 있어요…')
+            self.load_local_video()
             return
         if self.loading:
             self.video_widget.set_message('곡 준비가 끝나면 영상이 표시됩니다.')
@@ -222,6 +223,11 @@ class Engine(QObject):
         else:
             self.video_widget.set_message('영상을 준비하고 있어요…')
             self.submit_stream('video')
+
+    def load_local_video(self):
+        if not self.video_widget:return
+        if Path(self.track.uri).suffix.lower() in VIDEO:self.load_video(QUrl.fromLocalFile(self.track.uri))
+        else:self.video_widget.set_message('현재 곡은 오디오 파일입니다.')
 
     def set_video_visible(self, visible):
         if self.video_visible == visible:
@@ -290,6 +296,8 @@ class Engine(QObject):
         if self._changing_video or not self.video or not self.video_visible or error == QMediaPlayer.NoError:
             return
         log.warning('Video error: %s; retry=%s; detail=%s', error.name, self.video_retry_count, safe_error(text))
+        if self.track and self.track.kind=='local':
+            self.video_failed();return
         if self.video_retry_count < 1:
             self.video_retry_count += 1
             request, video_request = self.request, self.video_request
@@ -308,7 +316,7 @@ class Engine(QObject):
     def video_failed(self):
         self.video_sync.stop()
         if self.video_widget:
-            self.video_widget.set_message('영상 연결을 열지 못했습니다. 영상 탭을 닫았다가 다시 열어 주세요.')
+            self.video_widget.set_message('이 영상 형식을 표시하지 못했습니다. 오디오 재생은 계속됩니다.' if self.track and self.track.kind=='local' else '영상 연결을 열지 못했습니다. 영상 탭을 닫았다가 다시 열어 주세요.')
         self.message.emit('영상 연결이 제한되었습니다. 오디오 재생은 계속됩니다.')
 
     def sync_video(self):
@@ -368,6 +376,7 @@ class Engine(QObject):
     def status(self, status):
         if self._changing_source:
             return
+        if status==QMediaPlayer.LoadedMedia and self.track and self.track.kind=='local':self.player.setActiveVideoTrack(-1)
         if status in (QMediaPlayer.LoadedMedia, QMediaPlayer.BufferedMedia) and self.seek:
             self.seek_to(self.seek)
             self.seek = 0

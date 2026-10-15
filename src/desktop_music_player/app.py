@@ -2,8 +2,8 @@
 import json,logging,random,sys,time
 from .scaling import scale_tree,stylesheet
 from pathlib import Path
-from PySide6.QtCore import Qt,QTimer,QThreadPool,QUrl,QPropertyAnimation,QEasingCurve,QSize,Slot,Property,QEvent,QAbstractAnimation
-from PySide6.QtGui import QFont,QColor,QDesktopServices,QAction,QIcon,QPainter,QPixmap,QShortcut,QKeySequence,QFontDatabase
+from PySide6.QtCore import Qt,QTimer,QThreadPool,QUrl,QPropertyAnimation,QEasingCurve,QSize,Slot,Property,QEvent,QAbstractAnimation,QItemSelectionModel
+from PySide6.QtGui import QFont,QColor,QDesktopServices,QAction,QIcon,QPainter,QPixmap,QImage,QShortcut,QKeySequence,QFontDatabase
 from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QFrame,QLabel,QPushButton,QVBoxLayout,QHBoxLayout,QGridLayout,
  QSizePolicy,QSlider,QLineEdit,QListView,QTabWidget,QComboBox,QFileDialog,QInputDialog,QMessageBox,QDialog,QFormLayout,QCheckBox,
  QSizeGrip,QSystemTrayIcon,QMenu,QAbstractItemView,QDialogButtonBox,QSpinBox,QColorDialog,QTextEdit,QPlainTextEdit,QAbstractSpinBox)
@@ -11,11 +11,12 @@ from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtNetwork import QLocalServer,QLocalSocket
 from .core import Track,Queue,scan_library,app_root,AUDIO,VIDEO,playlist_id
 from .storage import Store
-from .jobs import Job,TrackModel
+from .jobs import Job,TrackModel,QueueModel
 from .engine import Engine
 from .widgets import Surface,Artwork,Spectrum,DragBar,TrackDelegate,Deck,LCDFrame,ElidedLabel,VideoCanvas,ResizeHandle,install_button_focus_filter
 from .icons import icon
 from . import youtube
+from .covers import CoverCache
 from .background_editor import BackgroundEditor
 
 def resource(name):return Path(getattr(sys,'_MEIPASS',app_root()))/name
@@ -58,7 +59,9 @@ class Window(QMainWindow):
         self.setAcceptDrops(True);self.queue=Queue();self.queue.repeat=self.config.get('repeat','off');self.queue.set_shuffle(self.config.get('shuffle',False))
         self.engine=Engine(self);self.engine.audio.setVolume(self.config['volume'])
         self.pool=QThreadPool(self);self.pool.setMaxThreadCount(2);self.jobs={};self.job_id=0;self.scan_pending=False
+        self.youtube_session=None;self.youtube_page=0;self.youtube_has_more=False;self.youtube_loading=False;self.youtube_request=0;self.youtube_target_page=0
         self.library=[];self.filtered=[];self.youtube_results=[];self.source='local';self.expanded=False;self.video_widget=None;self.saved_height=max(MIN_PANEL_HEIGHT,self.config.get('panel_height',340));self._transitioning=False
+        self.covers=CoverCache(self,enabled=not demo);self.covers.changed.connect(self.cover_changed)
         self.surface=Surface(self);self.setCentralWidget(self.surface);self.header=QWidget(self.surface);outer=QVBoxLayout(self.header);outer.setContentsMargins(0,0,0,0);outer.setSpacing(4)
         self.bar=DragBar(self);self.bar.setFixedHeight(30);bar=QHBoxLayout(self.bar);bar.setContentsMargins(2,0,0,0);bar.setSpacing(5)
         self.brand=QLabel('Desktop Music');self.brand.setObjectName('brand');bar.addWidget(self.brand);bar.addStretch()
@@ -112,13 +115,13 @@ class Window(QMainWindow):
             try:self.queue.replace([Track.from_dict(x) for x in restored]);self.queue.set_shuffle(self.config.get('shuffle',False));self.refresh_queue()
             except (TypeError,ValueError):pass
             last_scan=float(self.store.config().get('last_scan',0))
-            if not cached or time.time()-last_scan>86400:self.rescan()
+            if not cached or time.time()-last_scan>86400 or self.config.get('library_media_version',0)<2:self.rescan()
     def button(self,text,tip,callback,wide=False):
         icons={'◇':'pin','⚙':'settings','−':'minimize','×':'close','⤨':'shuffle','‹':'previous','▶':'play','›':'next','↻':'repeat','🎲':'random',
                '보관함':'library','대기열':'queue','재생목록':'playlist','영상':'video','LOCAL':'music','YOUTUBE':'youtube',
                '랜덤 재생':'random','폴더':'folder','새로고침':'refresh','검색':'search','선택 곡 추가':'plus','검색 결과 모두 추가':'list-plus',
                '선택 삭제':'delete','비우기':'clear','목록 저장':'save','재생':'play','현재 대기열 저장':'save','삭제':'delete',
-               '내보내기':'download','가져오기':'upload','원본 영상으로 이어보기':'external'}
+               '이전 페이지':'previous','다음 페이지':'next','내보내기':'download','가져오기':'upload','원본 영상으로 이어보기':'external'}
         name=icons.get(text)
         icon_only=not wide or text=='🎲'
         b=QPushButton('' if name and icon_only else text);b.setProperty('iconOnly',icon_only);b.setToolTip(tip);b.setAccessibleName(tip);b.clicked.connect(callback);b.setCursor(Qt.PointingHandCursor)
@@ -127,15 +130,16 @@ class Window(QMainWindow):
         if icon_only:b.setFixedSize(30,30)
         return b
     def list_view(self,model):
-        view=QListView();view.setModel(model);view.setItemDelegate(TrackDelegate(view));view.setUniformItemSizes(True);view.setLayoutMode(QListView.Batched);view.setBatchSize(128);view.setSelectionMode(QAbstractItemView.ExtendedSelection);view.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel);return view
+        view=QListView();view.setModel(model);view.setItemDelegate(TrackDelegate(view,self.covers));view.setUniformItemSizes(True);view.setLayoutMode(QListView.Batched);view.setBatchSize(128);view.setSelectionMode(QAbstractItemView.ExtendedSelection);view.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel);return view
     def make_library(self):
         page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(4,8,4,4)
         row=QHBoxLayout();self.local_button=self.button('LOCAL','로컬 보관함',lambda:self.change_source('local'),True);self.yt_button=self.button('YOUTUBE','유튜브 검색',lambda:self.change_source('youtube'),True);row.addWidget(self.local_button);row.addWidget(self.yt_button);row.addStretch();row.addWidget(self.button('랜덤 재생','로컬 랜덤 재생',self.random_local,True));row.addWidget(self.button('폴더','음악 폴더 추가',self.choose_folder,True));row.addWidget(self.button('새로고침','보관함 갱신',self.rescan,True));layout.addLayout(row)
         row=QHBoxLayout();self.search_box=QLineEdit();self.search_box.setPlaceholderText('곡·앨범 검색 또는 유튜브 주소');self.search_box.returnPressed.connect(self.search);row.addWidget(self.search_box);row.addWidget(self.button('검색','검색',self.search,True));layout.addLayout(row)
-        self.library_model=TrackModel();self.library_view=self.list_view(self.library_model);self.library_view.doubleClicked.connect(self.play_library);layout.addWidget(self.library_view)
-        row=QHBoxLayout();row.addWidget(self.button('선택 곡 추가','선택한 곡을 대기열에 추가',self.add_selected,True));row.addWidget(self.button('검색 결과 모두 추가','표시 중인 곡을 대기열에 추가',self.add_all,True));row.addStretch();layout.addLayout(row);self.tabs.addTab(page,'보관함')
+        self.library_model=TrackModel();self.library_view=self.list_view(self.library_model);self.library_view.doubleClicked.connect(self.play_library);self.library_view.setContextMenuPolicy(Qt.CustomContextMenu);self.library_view.customContextMenuRequested.connect(lambda pos:self.track_menu(self.library_view,pos,False));layout.addWidget(self.library_view)
+        self.youtube_pager=QWidget();pager=QHBoxLayout(self.youtube_pager);pager.setContentsMargins(0,0,0,0);self.youtube_prev=self.button('이전 페이지','이전 검색 결과 10곡',lambda:self.load_youtube_page(self.youtube_page-1),True);self.youtube_next=self.button('다음 페이지','다음 검색 결과 10곡',lambda:self.load_youtube_page(self.youtube_page+1),True);self.youtube_page_label=QLabel();self.youtube_page_label.setObjectName('muted');pager.addWidget(self.youtube_prev);pager.addStretch();pager.addWidget(self.youtube_page_label);pager.addStretch();pager.addWidget(self.youtube_next);layout.addWidget(self.youtube_pager);self.update_youtube_pager()
+        row=QHBoxLayout();row.addWidget(self.button('선택 곡 추가','선택한 곡을 대기열에 추가',self.add_selected,True));self.add_all_button=self.button('검색 결과 모두 추가','표시 중인 곡을 대기열에 추가',self.add_all,True);row.addWidget(self.add_all_button);row.addStretch();layout.addLayout(row);self.tabs.addTab(page,'보관함')
     def make_queue(self):
-        page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(4,8,4,4);self.queue_model=TrackModel();self.queue_view=self.list_view(self.queue_model);self.queue_view.doubleClicked.connect(lambda index:self.play_index(index.row()));layout.addWidget(self.queue_view)
+        page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(4,8,4,4);self.queue_model=QueueModel(self.queue);self.queue_model.move_requested.connect(self.move_queue);self.queue_view=self.list_view(self.queue_model);self.queue_view.setDragDropMode(QAbstractItemView.InternalMove);self.queue_view.setDefaultDropAction(Qt.MoveAction);self.queue_view.setDragDropOverwriteMode(False);self.queue_view.setDropIndicatorShown(True);self.queue_view.setContextMenuPolicy(Qt.CustomContextMenu);self.queue_view.customContextMenuRequested.connect(lambda pos:self.track_menu(self.queue_view,pos,True));self.queue_view.doubleClicked.connect(lambda index:self.play_index(index.row()));layout.addWidget(self.queue_view)
         row=QHBoxLayout();row.addWidget(self.button('선택 삭제','선택한 대기 곡 삭제',self.remove_selected,True));row.addWidget(self.button('비우기','재생 종료와 대기열 비우기',self.clear_queue,True));row.addWidget(self.button('목록 저장','현재 대기열을 저장',self.save_playlist,True));row.addStretch();layout.addLayout(row);self.tabs.addTab(page,'대기열')
     def make_playlists(self):
         page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(4,8,4,4)
@@ -148,16 +152,15 @@ class Window(QMainWindow):
         layout.addStretch();self.tabs.addTab(page,'재생목록')
     def make_video_page(self):
         self.video_page=QWidget();self.video_layout=QVBoxLayout(self.video_page);self.video_layout.setContentsMargins(4,8,4,4)
-        self.video_note=QLabel('유튜브 곡을 재생한 뒤 영상으로 이어 볼 수 있어요.');self.video_note.setWordWrap(True);self.video_note.setObjectName('muted');self.video_layout.addWidget(self.video_note)
-        self.video_layout.addWidget(self.button('원본 영상으로 이어보기','현재 위치에서 브라우저로 열기',self.open_original,True));self.tabs.addTab(self.video_page,'영상')
-    def submit(self,fn,args,callback):
-        self.job_id+=1;ident=self.job_id;job=Job(ident,fn,*args);self.jobs[ident]=(job,callback)
+        self.original_video_button=self.button('원본 영상으로 이어보기','현재 위치에서 브라우저로 열기',self.open_original,True);self.video_layout.addWidget(self.original_video_button);self.tabs.addTab(self.video_page,'영상')
+    def submit(self,fn,args,callback,report_error=True):
+        self.job_id+=1;ident=self.job_id;job=Job(ident,fn,*args);self.jobs[ident]=(job,callback,report_error)
         job.signals.done.connect(self.job_done);self.pool.start(job);return ident
     @Slot(int,object,str)
     def job_done(self,ident,result,error):
         pair=self.jobs.pop(ident,None)
         if pair:
-            if error:self.tell(error)
+            if error and pair[2]:self.tell(error)
             pair[1](result,error)
     def tell(self,message):self.status_label.setText(message);self.status_label.setToolTip(message)
     def rescan(self):
@@ -166,7 +169,7 @@ class Window(QMainWindow):
         def scanned(result,error):
             self.scan_pending=False
             if error:return
-            self.set_library(result);self.submit(self.store.save_library,(result,),lambda *_:None);self.store.set('last_scan',time.time());self.tell(f'로컬 음악 {len(result):,}곡 준비 완료')
+            self.covers.invalidate();self.set_library(result);self.refresh_cover();self.submit(self.store.save_library,(result,),lambda *_:None);self.store.set_many({'last_scan':time.time(),'library_media_version':2});self.tell(f'로컬 음악 {len(result):,}곡 준비 완료')
         self.submit(scan_library,(self.store.roots(),),scanned)
     def set_library(self,tracks):self.library=tracks;self.counter.setText(f'LOCAL {len(tracks):,}');self.apply_filter()
     def apply_filter(self):
@@ -176,17 +179,43 @@ class Window(QMainWindow):
         self.source=source;self.search_box.clear()
         self.search_box.setPlaceholderText('곡·앨범 검색' if source=='local' else '유튜브 검색어·영상·플레이리스트 주소')
         if source=='local':self.apply_filter()
-        else:self.library_model.replace(self.youtube_results)
+        else:
+            self.library_model.replace(self.youtube_results)
+            if self.youtube_session:self.search_box.setText(self.youtube_session.value)
+        self.update_youtube_pager()
+    def update_youtube_pager(self):
+        paged=self.youtube_session is not None and self.youtube_session.paged
+        self.youtube_pager.setVisible(self.source=='youtube' and paged)
+        self.youtube_prev.setEnabled(not self.youtube_loading and self.youtube_page>0)
+        self.youtube_next.setEnabled(not self.youtube_loading and self.youtube_has_more)
+        page=self.youtube_target_page if self.youtube_loading else self.youtube_page
+        self.youtube_page_label.setText(f'{page+1}페이지 · 불러오는 중…' if self.youtube_loading else f'{page+1}페이지 · {len(self.youtube_results)}곡')
+        if hasattr(self,'add_all_button'):self.add_all_button.setText('이 페이지 모두 추가' if self.source=='youtube' and paged else '검색 결과 모두 추가')
     def search(self):
         if self.source=='local':self.apply_filter();return
-        value=self.search_box.text();self.tell('유튜브에서 찾고 있어요…');self.yt_button.setEnabled(False)
+        try:session=youtube.SearchSession(self.search_box.text())
+        except ValueError as error:self.tell(str(error));return
+        if self.youtube_session:self.youtube_session.close()
+        self.youtube_session=session;self.youtube_results=[];self.youtube_page=0;self.youtube_has_more=False;self.library_model.replace([])
+        self.load_youtube_page(0)
+    def load_youtube_page(self,page):
+        session=self.youtube_session
+        if session is None or page<0:return
+        self.youtube_request+=1;request=self.youtube_request;self.youtube_loading=True;self.youtube_target_page=page;self.update_youtube_pager();self.tell('유튜브에서 찾고 있어요…')
         def found(result,error):
-            self.yt_button.setEnabled(True)
-            if error:return
-            self.youtube_results=result
-            if self.source=='youtube':self.library_model.replace(result)
-            self.tell(f'{len(result)}곡 찾았어요. 더블클릭하면 재생합니다.' if result else '검색 결과가 없습니다.')
-        self.submit(youtube.search,(value,),found)
+            if self.youtube_session is not session or request!=self.youtube_request:return
+            self.youtube_loading=False
+            if not error and result:
+                # Keep the preceding page when continuation has no more entries.
+                if result['tracks'] or page==0:
+                    self.youtube_results=result['tracks'];self.youtube_page=result['page']
+                self.youtube_has_more=result['has_more']
+                if self.source=='youtube':
+                    self.library_model.replace(self.youtube_results);self.library_view.scrollToTop()
+                    self.tell(f'{len(self.youtube_results)}곡 찾았어요. 더블클릭하면 재생합니다.' if result['tracks'] else '마지막 검색 결과입니다.' if page else '검색 결과가 없습니다.')
+            elif error and self.source=='youtube':self.tell(error+' 다시 검색하거나 페이지를 눌러 주세요.')
+            self.update_youtube_pager()
+        self.submit(session.get_page,(page,),found,report_error=False)
     def selected_tracks(self):return [self.library_model.tracks[i.row()] for i in sorted(self.library_view.selectionModel().selectedIndexes(),key=lambda x:x.row())]
     def add_selected(self):self.add_tracks(self.selected_tracks())
     def add_all(self):self.add_tracks(self.library_model.tracks)
@@ -221,8 +250,48 @@ class Window(QMainWindow):
         for row in rows:removed_current=self.queue.remove(row) or removed_current
         if removed_current:self.engine.stop();self.next()
         self.refresh_queue()
+    def move_queue(self,rows,destination):
+        selected_rows=sorted(set(rows));target=destination-sum(row<destination for row in selected_rows)
+        if not self.queue.move(rows,destination):return
+        shuffled=self.queue.shuffle
+        if shuffled:self.queue.set_shuffle(False);self.store.set('shuffle',False)
+        self.refresh_queue();self.update_transport()
+        for row in range(target,target+len(selected_rows)):self.queue_view.selectionModel().select(self.queue_model.index(row,0),QItemSelectionModel.Select|QItemSelectionModel.Rows)
+        self.tell('재생 순서를 바꿨어요. 지정 순서로 재생하도록 셔플을 껐어요.' if shuffled else '재생 순서를 바꿨어요.')
+    def track_menu(self,view,pos,queued):
+        index=view.indexAt(pos)
+        if not index.isValid():return
+        if not view.selectionModel().isSelected(index):view.setCurrentIndex(index);view.selectionModel().select(index,QItemSelectionModel.ClearAndSelect|QItemSelectionModel.Rows)
+        rows=sorted(i.row() for i in view.selectionModel().selectedIndexes());tracks=[view.model().tracks[row] for row in rows];clicked=view.model().tracks[index.row()];menu=QMenu(self)
+        menu.addAction(icon('play',self.theme['text']),'바로 재생',lambda:self.play_context_track(clicked,queued,index.row()))
+        if not queued:menu.addAction(icon('plus',self.theme['text']),'선택 곡을 대기열에 추가',lambda:self.add_tracks(tracks))
+        playlists=menu.addMenu('재생목록에 추가')
+        for name in self.store.playlist_names():playlists.addAction(name,lambda checked=False,name=name:self.append_playlist(name,tracks))
+        if self.store.playlist_names():playlists.addSeparator()
+        playlists.addAction('새 재생목록…',lambda:self.save_selected_playlist(tracks));menu.addAction('선택 곡으로 새 재생목록 저장…',lambda:self.save_selected_playlist(tracks))
+        if queued:menu.addAction(icon('delete',self.theme['text']),'선택 곡을 대기열에서 삭제',self.remove_selected)
+        menu.addSeparator()
+        if clicked.kind=='youtube':menu.addAction('원본 유튜브 열기',lambda:QDesktopServices.openUrl(QUrl(clicked.uri)))
+        else:menu.addAction('파일 위치 열기',lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(clicked.uri).parent))))
+        previous=getattr(self,'_track_menu',None)
+        if previous:previous.close()
+        self._track_menu=menu
+        menu.aboutToHide.connect(lambda:setattr(self,'_track_menu',None) if getattr(self,'_track_menu',None) is menu else None);menu.aboutToHide.connect(menu.deleteLater)
+        menu.popup(view.viewport().mapToGlobal(pos))
+    def play_context_track(self,track,queued,row):
+        if queued:
+            if not 0<=row<len(self.queue.tracks) or self.queue.tracks[row] is not track:row=next((i for i,item in enumerate(self.queue.tracks) if item is track),-1)
+            if row>=0:self.play_index(row)
+        else:
+            row=len(self.queue.tracks);self.queue.append([track]);self.play_index(row)
+    def append_playlist(self,name,tracks):
+        self.store.save_playlist(name,self.store.playlist(name)+tracks);self.refresh_playlists();self.tell(f'{name}에 {len(tracks)}곡을 추가했어요.')
+    def save_selected_playlist(self,tracks):
+        if not tracks:return
+        name,ok=QInputDialog.getText(self,'선택 곡 저장','새 재생목록 이름')
+        if ok and name.strip():self.store.save_playlist(name,tracks);self.refresh_playlists();self.tell('선택 곡을 재생목록으로 저장했어요.')
     def clear_queue(self):self.engine.stop();self.queue.replace([]);self.refresh_queue();self.update_transport()
-    def refresh_queue(self):self.queue_model.replace(self.queue.tracks)
+    def refresh_queue(self):self.queue_model.replace(self.queue.tracks);self.queue_model.refresh_state(self.engine.track is not None)
     def toggle_shuffle(self):self.queue.set_shuffle(not self.queue.shuffle);self.store.set('shuffle',self.queue.shuffle);self.update_transport()
     def toggle_repeat(self):
         self.queue.repeat={'off':'all','all':'one','one':'off'}[self.queue.repeat];self.store.set('repeat',self.queue.repeat);self.update_transport()
@@ -232,6 +301,12 @@ class Window(QMainWindow):
         total=self.engine.player.duration();pos=self.engine.player.position();self.time.setText(duration(pos)+' / '+duration(total))
         if not self.seek.isSliderDown():self.seek.setValue(round(pos/max(1,total)*1000))
         self.art.ratio=pos/max(1,total);self.art.update()
+    def refresh_cover(self):
+        self.art.pixmap=self.covers.get(self.engine.track,priority=1);self.art.update()
+    def cover_changed(self,key):
+        if self.engine.track and self.engine.track.key==key:self.refresh_cover()
+        for view in (self.library_view,self.queue_view):
+            if view.isVisible():view.viewport().update()
     def update_transport(self):
         track=self.queue.current if self.engine.track else None
         self.play.setIcon(icon('pause' if self.engine.playing() else 'play',self.play_ink()))
@@ -241,7 +316,8 @@ class Window(QMainWindow):
         if track:
             self.title.setText(track.title);self.title.setToolTip(track.title);self.artist.setText(track.artist or track.album or '내 음악');self.artist.setToolTip(self.artist.text());self.badge.setText('YOUTUBE' if track.kind=='youtube' else Path(track.uri).suffix.upper().lstrip('.'));self.art.letter=track.title[:1]
         else:self.title.setText('음악을 골라 주세요');self.artist.setText('로컬 음악 · 유튜브');self.badge.setText('READY');self.art.letter='♪'
-        self.visual_state()
+        self.original_video_button.setVisible(bool(self.engine.track and self.engine.track.kind=='youtube'))
+        self.queue_model.refresh_state(self.engine.track is not None);self.refresh_cover();self.visual_state()
     def get_panel_extent(self):return self.height()
     def set_panel_extent(self,value):self.resize(self.width(),value);self.layout_surface()
     panelExtent=Property(int,get_panel_extent,set_panel_extent)
@@ -453,6 +529,8 @@ class Window(QMainWindow):
         else:self.showMinimized()
     def restore(self):self.showNormal();self.raise_();self.activateWindow()
     def exit_app(self):
+        self.covers.stop()
+        if self.youtube_session:self.youtube_session.close()
         self.finish_transition();self.store.set('volume',self.volume.value()/100);self.store.set('width',round(self.width()/self.ui_scale));self.store.set('panel_height',round(self.saved_height/self.ui_scale));self.store.set('compact_height',round(self.compact_height/self.ui_scale))
         self.store.set('last_queue',[t.to_dict() for t in self.queue.tracks]);self.engine.stop();self.tray.hide();self.hide();self.deleteLater();QTimer.singleShot(250,QApplication.quit)
     def closeEvent(self,e):e.ignore();self.hide_player()
@@ -498,7 +576,17 @@ def main():
             result['expanded_background_preview']=background.preview_window.expanded and not background.preview.pixmap.isNull() and not test.expanded
             result['appearance_source_unchanged']=test.engine.player.source()==source
             background.reject();background.deleteLater()
+            from PySide6.QtCore import QEventLoop
+            def wait(ms):
+                loop=QEventLoop();QTimer.singleShot(ms,loop.quit);loop.exec()
+            cover=QImage(256,256,QImage.Format_RGB32);cover.fill(QColor('#be7243'));cover.save(str(folder/'cover.png'));test.covers.enabled=True;test.refresh_cover();wait(350)
+            result['asynchronous_album_cover']=test.art.pixmap.toImage().pixelColor(128,128).name()=='#be7243'
+            if '--test-video' in sys.argv:
+                video_file=Path(sys.argv[sys.argv.index('--test-video')+1]).resolve();test.engine.play_track(Track('Local video self-test',str(video_file)));wait(700);test.engine.player.pause();test.engine.seek_to(1500);wait(70);video_source=test.engine.player.source();position=test.engine.player.position();test.expand('영상');test.finish_transition();wait(800)
+                result['local_video']={'frame_rendered':not test.video_widget.image.isNull(),'paused_position_preserved':abs(test.engine.player.position()-position)<80,'audio_source_unchanged':test.engine.player.source()==video_source,'companion_muted':test.engine.video_audio.isMuted() if test.engine.video_player else False}
+                test.expand('영상');test.finish_transition();result['local_video']['decoder_released_when_closed']=test.engine.video_player.source().isEmpty() if test.engine.video_player else False
             result['passed']=result['position_ms']>500 and result['spectrum_frames']>1 and result['font_family']=='NanumSquareRound' and result['bold_available'] and all(result[key] for key in ('appearance_live_preview','appearance_cancel_restored','expanded_background_preview','appearance_source_unchanged'))
+            result['passed']=result['passed'] and result['asynchronous_album_cover'] and all(result.get('local_video',{}).values())
             (folder/'report.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
             test.grab().save(str(folder/'screen.png'));test.engine.stop();test.hide();test.deleteLater();QTimer.singleShot(250,app.quit)
         QTimer.singleShot(1300,finish_test)

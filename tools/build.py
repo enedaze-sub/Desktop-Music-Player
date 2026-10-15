@@ -12,7 +12,7 @@ def main():
  if not deno.exists():raise SystemExit('Install deno into this environment first')
  args=[sys.executable,'-m','PyInstaller','--noconfirm','--clean','--windowed','--onedir','--name','DesktopMusicPlayer',
        '--icon',str(ROOT/'assets'/'app.ico'),'--version-file',str(ROOT/'tools'/'version-info.txt'),'--distpath',str(dist_root),'--workpath',str(build_root/'build'),'--paths',str(ROOT/'src'),'--add-data',str(ROOT/'assets')+';assets','--add-data',str(ROOT/'themes.json')+';.',
-       '--add-binary',str(deno)+';tools','--collect-submodules','yt_dlp','--collect-all','yt_dlp_ejs',
+       '--add-binary',str(deno)+';tools','--collect-submodules','mutagen','--collect-submodules','yt_dlp','--collect-all','yt_dlp_ejs',
        '--exclude-module','PySide6.QtWebEngineCore','--exclude-module','PySide6.QtWebEngineWidgets','--exclude-module','PySide6.QtWebEngineQuick',
        '--exclude-module','PySide6.QtPdf','--exclude-module','PySide6.QtPdfWidgets','--exclude-module','PySide6.QtQuick','--exclude-module','PySide6.QtQml',str(ROOT/'run.py')]
  if '--package-only' not in sys.argv:

@@ -84,4 +84,15 @@ class UIRegressionTests(unittest.TestCase):
   engine=self.w.engine;engine.track=Track('Current','https://youtu.be/dQw4w9WgXcQ','youtube');engine.jobs[7]=(None,engine.request-1,'audio',0)
   with patch.object(engine,'apply_audio') as apply:engine.resolved(7,{'title':'Old'},'');apply.assert_not_called()
   text=safe_error('HTTP 403 https://media.test/a?sig=private&ip=1.2.3.4 refused');self.assertNotIn('private',text);self.assertNotIn('1.2.3.4',text)
+
+
+ def test_local_video_mode_uses_muted_companion_without_audio_source_reset(self):
+  w=self.w;w.expand('영상');w.finish_transition();file=Path(self.temp.name)/'clip.mp4';file.touch();track=Track('Video',str(file));w.engine.track=track;w.engine.video=False
+  with patch.object(w.engine.player,'setSource') as source,patch.object(w.engine,'load_video') as load,patch.object(w.engine,'submit_stream') as network:
+   w.engine.set_video_mode(True,w.video_widget);self.assertEqual(Path(load.call_args.args[0].toLocalFile()).resolve(),file.resolve());source.assert_not_called();network.assert_not_called()
+ def test_local_video_error_never_tries_youtube_resolution(self):
+  from PySide6.QtMultimedia import QMediaPlayer
+  w=self.w;w.expand('영상');w.finish_transition();w.engine.track=Track('Video','clip.mp4');w.engine.video=True;w.engine.video_visible=True
+  with patch.object(w.engine,'submit_stream') as network:w.engine.video_error(QMediaPlayer.FormatError,'unsupported');QTest.qWait(180);network.assert_not_called()
+
 if __name__=='__main__':unittest.main()

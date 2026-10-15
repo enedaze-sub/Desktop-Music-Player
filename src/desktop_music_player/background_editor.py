@@ -65,6 +65,8 @@ class BackgroundEditor(QDialog):
         # An inert copy renders both states without altering real playback or the drawer.
         from .app import Window
         self.preview_window=Window(owner.store,demo=True);self.preview_window.setParent(self,Qt.Window);self.preview_window.setAttribute(Qt.WA_DontShowOnScreen,True)
+        self.preview_window.covers=owner.covers
+        for view in (self.preview_window.library_view,self.preview_window.queue_view):view.itemDelegate().covers=owner.covers
         self.preview_window.config.update(owner.config);self.preview_window.set_ui_scale(owner.ui_scale,persist=False)
         self.preview_window.set_library(owner.library);self.preview_window.queue.replace(list(owner.queue.tracks));self.preview_window.refresh_queue()
         self.preview_window.tabs.setCurrentIndex(owner.tabs.currentIndex() if owner.tabs.currentIndex()<3 else 0)

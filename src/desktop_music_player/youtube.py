@@ -1,5 +1,6 @@
 """On-demand YouTube discovery. Signed stream URLs remain in memory only."""
 import sys,re,shutil,time
+from threading import Lock,Event
 from pathlib import Path
 from urllib.parse import urlparse,parse_qs
 import yt_dlp
@@ -23,14 +24,57 @@ def search(value):
     with yt_dlp.YoutubeDL(opts) as ydl:info=ydl.extract_info(query,download=False)
     if not info:return []
     entries=info.get('entries') if 'entries' in info else [info]
-    results=[]
-    for entry in entries or []:
-        if not entry or entry.get('is_live') or entry.get('title') in {'[Deleted video]','[Private video]'}:continue
-        video_id=entry.get('id','')
-        if not re.fullmatch('[A-Za-z0-9_-]{11}',video_id):continue
-        results.append(Track(entry.get('title') or '제목 없음','https://www.youtube.com/watch?v='+video_id,'youtube',
-                             entry.get('channel') or entry.get('uploader') or '',info.get('title','') if pid else '',entry.get('duration') or 0))
-    return results
+    return [track for entry in entries or [] if (track:=entry_track(entry,info.get('title','') if pid else ''))]
+
+def entry_track(entry,album=''):
+    if not entry or entry.get('is_live') or entry.get('title') in {'[Deleted video]','[Private video]'}:return None
+    video_id=entry.get('id','')
+    if not re.fullmatch('[A-Za-z0-9_-]{11}',video_id):return None
+    return Track(entry.get('title') or '제목 없음','https://www.youtube.com/watch?v='+video_id,'youtube',entry.get('channel') or entry.get('uploader') or '',album,entry.get('duration') or 0)
+
+class SearchSession:
+    """Consume YouTube continuation lazily; keep visited pages in memory only."""
+    PAGE_SIZE=10
+    def __init__(self,value):
+        self.query=youtube_input(value);self.value=value.strip();self.paged=self.query.startswith('ytsearch10:')
+        self._lock=Lock();self._cancelled=Event();self._iterator=None;self._tracks=[];self._seen=set();self._exhausted=False
+    def _iter_tracks(self):
+        opts=options();opts.update(extract_flat=True,lazy_playlist=True,noplaylist=True)
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info=ydl.extract_info('ytsearchall:'+self.query.split(':',1)[1],download=False)
+            for entry in (info or {}).get('entries') or []:
+                if self._cancelled.is_set():return
+                track=entry_track(entry)
+                if track:yield track
+    def _close_iterator(self):
+        if self._iterator is not None:
+            self._iterator.close();self._iterator=None
+    def close(self):
+        self._cancelled.set()
+        # Never wait for an in-flight network request on the GUI thread.
+        if self._lock.acquire(blocking=False):
+            try:self._close_iterator()
+            finally:self._lock.release()
+    def get_page(self,page):
+        if page<0:raise ValueError('페이지 번호를 확인해 주세요.')
+        with self._lock:
+            try:
+                if self._cancelled.is_set():raise ValueError('취소된 검색입니다.')
+                if not self.paged:
+                    if not self._exhausted:self._tracks=search(self.value);self._exhausted=True
+                    return {'tracks':list(self._tracks),'page':0,'has_more':False}
+                end=(page+1)*self.PAGE_SIZE
+                while len(self._tracks)<=end and not self._exhausted:
+                    if self._cancelled.is_set():raise ValueError('취소된 검색입니다.')
+                    if self._iterator is None:self._iterator=self._iter_tracks()
+                    try:track=next(self._iterator)
+                    except StopIteration:self._exhausted=True;self._close_iterator();break
+                    except Exception:
+                        self._close_iterator();raise
+                    if track.key not in self._seen:self._tracks.append(track);self._seen.add(track.key)
+                return {'tracks':self._tracks[page*self.PAGE_SIZE:end],'page':page,'has_more':len(self._tracks)>end}
+            finally:
+                if self._cancelled.is_set():self._close_iterator()
 
 def resolve(track,video=False,fallback=False):
     youtube_input(track.uri)
