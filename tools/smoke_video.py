@@ -12,9 +12,9 @@ ROOT=Path(__file__).resolve().parents[1];app=QApplication([]);configure_fonts();
 def wait_for(predicate,seconds=50):
  end=time.monotonic()+seconds
  while time.monotonic()<end:
-  QTest.qWait(100)
+  time.sleep(.02);app.processEvents()
   if predicate():return
- raise AssertionError('Timed out; audio='+w.engine.player.error().name+' video='+w.engine.video_player.error().name)
+ raise AssertionError('Timed out; audio='+w.engine.player.error().name+' video='+(w.engine.video_player.error().name if w.engine.video_player else 'not opened'))
 report=[]
 for query in ('Doul BE ME official','Ar Tonelico III EXEC_COSMOFLIPS lyrics'):
  tracks=search(query);assert tracks;track=tracks[0];w.queue.replace([track]);w.queue.select(0)
@@ -35,5 +35,5 @@ for query in ('Doul BE ME official','Ar Tonelico III EXEC_COSMOFLIPS lyrics'):
  report.append(item);w.grab().save(str(ROOT/'artifacts'/('video-rendered-'+str(len(report))+'.png')))
  assert item['audio_error']=='NoError' and item['video_error']=='NoError',item
  w.expand('영상');w.finish_transition();w.engine.stop()
-(ROOT/'artifacts'/'video-test.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8');print(report)
+(ROOT/'artifacts'/'video-test.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8');print(json.dumps(report,ensure_ascii=True))
 w.hide();w.deleteLater();QTest.qWait(250)

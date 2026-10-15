@@ -78,8 +78,10 @@ class UIRegressionTests(unittest.TestCase):
  def test_recovery_is_bounded_preserves_position_and_discards_bad_cache(self):
   engine=self.w.engine;engine.track=Track('YouTube','https://youtu.be/dQw4w9WgXcQ','youtube');engine.last_position=23000;engine.cache_stream({'url':'https://example.test/expired','title':'Song'})
   with patch.object(engine,'request_audio') as reload:
-   engine.recover_audio();self.assertIsNone(engine.cached_stream());self.assertEqual(engine.seek,23000);QTest.qWait(200);reload.assert_called_once()
-   engine.recover_audio();QTest.qWait(180);self.assertEqual(reload.call_count,1);self.assertFalse(engine.loading)
+   for expected in (1000,3000,6000):
+    engine.recover_audio();self.assertIsNone(engine.cached_stream());self.assertEqual(engine.seek,23000);self.assertEqual(engine.retry_timer.interval(),expected);self.assertTrue(engine.retry_pending)
+    engine.recover_audio();self.assertTrue(engine.retry_pending);engine.retry_timer.stop();engine.retry_pending=False
+   engine.recover_audio();self.assertTrue(engine.failed);self.assertFalse(engine.loading);self.assertTrue(engine.player.source().isEmpty());reload.assert_not_called()
  def test_late_worker_result_and_signed_urls_cannot_leak(self):
   engine=self.w.engine;engine.track=Track('Current','https://youtu.be/dQw4w9WgXcQ','youtube');engine.jobs[7]=(None,engine.request-1,'audio',0)
   with patch.object(engine,'apply_audio') as apply:engine.resolved(7,{'title':'Old'},'');apply.assert_not_called()

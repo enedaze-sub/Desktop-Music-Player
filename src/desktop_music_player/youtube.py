@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import urlparse,parse_qs
 import yt_dlp
 from .core import Track,youtube_input,playlist_id
+from . import audio_cache
 class Quiet:
     def debug(self,m):pass
     def warning(self,m):pass
@@ -76,10 +77,17 @@ class SearchSession:
             finally:
                 if self._cancelled.is_set():self._close_iterator()
 
-def resolve(track,video=False,fallback=False):
+def resolve(track,video=False,fallback=False,cache_folder=None,cancelled=None):
     youtube_input(track.uri)
+    if cancelled is not None and cancelled.is_set():raise ValueError('재생 요청이 취소되었습니다.')
+    if cache_folder is not None and not video:
+        if fallback:audio_cache.invalidate(cache_folder,track)
+        cached=audio_cache.cached_audio(cache_folder,track)
+        if cached:return cached
     opts=options();opts.update({'noplaylist':True,'format':'bestaudio[ext=webm]/bestaudio/best' if fallback else 'bestaudio[ext=m4a]/bestaudio/best'})
-    with yt_dlp.YoutubeDL(opts) as ydl:info=ydl.extract_info(track.uri,download=False)
+    with yt_dlp.YoutubeDL(opts) as ydl:return _resolved_info(ydl,ydl.extract_info(track.uri,download=False),track,video,cache_folder,cancelled)
+
+def _resolved_info(ydl,info,track,video,cache_folder,cancelled):
     if not info or not info.get('url'):raise ValueError('재생 가능한 스트림을 찾지 못했습니다.')
     candidates=[f for f in info.get('formats',[]) if f.get('vcodec','none')!='none' and f.get('url') and 0<(f.get('height') or 0)<=720 and (f.get('fps') or 30)<=30 and f.get('protocol','').startswith(('http','m3u8'))]
     candidates.sort(key=lambda f:(str(f.get('vcodec','')).startswith(('avc','h264')),f.get('height') or 0,f.get('acodec','none')=='none',-(f.get('tbr') or 0)),reverse=True)
@@ -94,7 +102,10 @@ def resolve(track,video=False,fallback=False):
         if value:
             try:expires.append(float(value[0]))
             except ValueError:expires.append(time.time())
-    return {'video_url':video_url,'video_fallback_url':alternate['url'] if alternate else None,
+    result={'video_url':video_url,'video_fallback_url':alternate['url'] if alternate else None,
             'url':info['url'],'title':info.get('title') or track.title,'duration':info.get('duration') or 0,
             'has_video':bool(video_url),'expires_at':min(expires) if expires else None,
             'audio_format':str(info.get('format_id') or '')}
+
+    if cache_folder is not None and not video:return audio_cache.prepare(ydl,info,result,cache_folder,track,cancelled)
+    return result

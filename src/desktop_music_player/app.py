@@ -296,9 +296,9 @@ class Window(QMainWindow):
     def toggle_repeat(self):
         self.queue.repeat={'off':'all','all':'one','one':'off'}[self.queue.repeat];self.store.set('repeat',self.queue.repeat);self.update_transport()
     def volume_changed(self,value):self.engine.audio.setVolume(value/100);self.volume_label.setText(str(value))
-    def seek_to(self):self.engine.seek_to(round(self.seek.value()/1000*self.engine.player.duration()))
+    def seek_to(self):self.engine.seek_to(round(self.seek.value()/1000*self.engine.playback_duration()))
     def position_tick(self):
-        total=self.engine.player.duration();pos=self.engine.player.position();self.time.setText(duration(pos)+' / '+duration(total))
+        total=self.engine.playback_duration();pos=self.engine.playback_position();self.time.setText(duration(pos)+' / '+duration(total))
         if not self.seek.isSliderDown():self.seek.setValue(round(pos/max(1,total)*1000))
         self.art.ratio=pos/max(1,total);self.art.update()
     def refresh_cover(self):
@@ -413,7 +413,7 @@ class Window(QMainWindow):
         if key==Qt.Key_Space:self.toggle_play();return True
         if key in (Qt.Key_Left,Qt.Key_Right):
             seconds=30 if mod&Qt.ShiftModifier else 5
-            self.engine.seek_to(self.engine.player.position()+seconds*1000*(1 if key==Qt.Key_Right else -1));return True
+            self.engine.seek_to(self.engine.playback_position()+seconds*1000*(1 if key==Qt.Key_Right else -1));return True
         if key in (Qt.Key_Up,Qt.Key_Down) and not isinstance(focus,QListView):
             self.volume.setValue(self.volume.value()+(5 if key==Qt.Key_Up else -5));return True
         if key==Qt.Key_M:self.engine.audio.setMuted(not self.engine.audio.isMuted());return True
@@ -428,7 +428,7 @@ class Window(QMainWindow):
         QMessageBox.information(self,'키보드 단축키','Space  재생 / 일시정지\nS  정지 · M  음소거\n← / →  5초 이동 · Shift + ← / →  30초 이동\n↑ / ↓  볼륨 ±5 (목록에서는 항목 이동)\nCtrl + ↑ / ↓  볼륨 ±5\nCtrl + ← / →  이전 / 다음 곡\nHome  곡 처음으로 · Delete  선택 대기 곡 삭제\nCtrl + 1 / 2 / 3 / 4  보관함 / 대기열 / 재생목록 / 영상\nCtrl + F  검색 · Esc  목록 닫기 · Ctrl + Q  종료\n\n검색창에 글을 입력할 때는 Space와 방향키를 가로채지 않습니다.')
     def open_original(self):
         track=self.engine.track
-        if track and track.kind=='youtube':QDesktopServices.openUrl(QUrl(track.uri+'&t='+str(self.engine.player.position()//1000)))
+        if track and track.kind=='youtube':QDesktopServices.openUrl(QUrl(track.uri+'&t='+str(self.engine.playback_position()//1000)))
         else:self.tell('현재 재생 중인 유튜브 곡이 없습니다.')
     def choose_folder(self):
         folder=QFileDialog.getExistingDirectory(self,'음악 폴더 선택')
@@ -585,8 +585,19 @@ def main():
                 video_file=Path(sys.argv[sys.argv.index('--test-video')+1]).resolve();test.engine.play_track(Track('Local video self-test',str(video_file)));wait(700);test.engine.player.pause();test.engine.seek_to(1500);wait(70);video_source=test.engine.player.source();position=test.engine.player.position();test.expand('영상');test.finish_transition();wait(800)
                 result['local_video']={'frame_rendered':not test.video_widget.image.isNull(),'paused_position_preserved':abs(test.engine.player.position()-position)<80,'audio_source_unchanged':test.engine.player.source()==video_source,'companion_muted':test.engine.video_audio.isMuted() if test.engine.video_player else False}
                 test.expand('영상');test.finish_transition();result['local_video']['decoder_released_when_closed']=test.engine.video_player.source().isEmpty() if test.engine.video_player else False
+            if '--test-youtube' in sys.argv:
+                uri=sys.argv[sys.argv.index('--test-youtube')+1];track=Track('YouTube recovery self-test',uri,'youtube');test.queue.replace([track]);test.queue.select(0);test.engine.play_track(track,position=50000)
+                def ready_after(position):
+                    deadline=time.monotonic()+35
+                    while time.monotonic()<deadline:
+                        wait(100)
+                        if not test.engine.loading and not test.engine.failed and test.engine.player.position()>position+500:return True
+                    return False
+                ready=ready_after(50000);checkpoint=test.engine.playback_position();local=test.engine.player.source().isLocalFile()
+                test.engine.recover_audio();recovered=ready_after(checkpoint)
+                result['youtube_recovery']={'initial_cached_audio_played':ready and local,'resumed_at_saved_position':recovered,'recovery_uses_cached_file':test.engine.player.source().isLocalFile(),'no_media_error':test.engine.player.error()==QMediaPlayer.NoError}
             result['passed']=result['position_ms']>500 and result['spectrum_frames']>1 and result['font_family']=='NanumSquareRound' and result['bold_available'] and all(result[key] for key in ('appearance_live_preview','appearance_cancel_restored','expanded_background_preview','appearance_source_unchanged'))
-            result['passed']=result['passed'] and result['asynchronous_album_cover'] and all(result.get('local_video',{}).values())
+            result['passed']=result['passed'] and result['asynchronous_album_cover'] and all(result.get('local_video',{}).values()) and all(result.get('youtube_recovery',{}).values())
             (folder/'report.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
             test.grab().save(str(folder/'screen.png'));test.engine.stop();test.hide();test.deleteLater();QTimer.singleShot(250,app.quit)
         QTimer.singleShot(1300,finish_test)

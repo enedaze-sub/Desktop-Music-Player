@@ -1,6 +1,6 @@
 {
   "date": "2026-10-15",
-  "unit_tests_passed": 60,
+  "unit_tests_passed": 75,
   "ui": {
     "font_family": "NanumSquareRound",
     "font_styles": [
@@ -35,6 +35,12 @@
       "audio_source_unchanged": true,
       "companion_muted": true,
       "decoder_released_when_closed": true
+    },
+    "youtube_recovery": {
+      "initial_cached_audio_played": true,
+      "resumed_at_saved_position": true,
+      "recovery_uses_cached_file": true,
+      "no_media_error": true
     },
     "passed": true
   },
@@ -127,7 +133,7 @@
     ],
     "alpha_zero_click_through_prevented": true
   },
-  "appearance_iteration": "0.1.6",
+  "appearance_iteration": "0.1.7",
   "appearance_editor": {
     "settings_size": [
       544,
@@ -275,5 +281,40 @@
     "previous_history_preserved": true,
     "duplicate_occurrence_selection_preserved": true,
     "context_playlist_append_multiselection_verified": true
+  },
+  "audio_stability": {
+    "same_reported_video_replay": {
+      "audio_is_local": true,
+      "max_position_ms": 90139,
+      "ended": true,
+      "errors": [],
+      "crossed_old_failure_point": true,
+      "reached_end": true,
+      "retries": 0,
+      "passed": true
+    },
+    "cache_preparation_seconds": 2.19,
+    "compressed_bytes": 1458636,
+    "background_cached_audio": {
+      "sample_seconds": 8,
+      "cpu_one_core_percent_mean": 2.81,
+      "rss_mb": 128.6,
+      "audio_is_local": true,
+      "error": "NoError"
+    },
+    "duplicate_error_flood_guard_verified": true,
+    "stalled_playback_watchdog_seconds": 15,
+    "retry_delays_seconds": [
+      1,
+      3,
+      6
+    ],
+    "pause_seek_and_cancellation_verified": true,
+    "cache_file_max_mib": 48,
+    "cache_total_target_mib": 192,
+    "cache_track_limit": 12,
+    "cache_age_hours": 24,
+    "signed_urls_excluded_from_cache_metadata": true,
+    "normal_queue_end_does_not_restart_playback": true
   }
 }
