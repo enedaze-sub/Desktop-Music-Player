@@ -16,6 +16,7 @@ from .engine import Engine
 from .widgets import Surface,Artwork,Spectrum,DragBar,TrackDelegate,Deck,LCDFrame,ElidedLabel,VideoCanvas,ResizeHandle,install_button_focus_filter
 from .icons import icon
 from . import youtube
+from .remote import RemoteControl
 from .covers import CoverCache
 from .palettes import resolve_theme,lcd_colors,qss_fill,lcd_fill
 from .layout import COMPACT_HEIGHT,EXPANDED_BASE,MIN_PANEL_HEIGHT,HEADER_HEIGHT,DRAWER_TOP,LAYOUT_VERSION
@@ -656,10 +657,9 @@ def main():
     socket=QLocalSocket();socket.connectToServer('DesktopMusicPlayer-v1')
     if socket.waitForConnected(150):socket.write(b'show');socket.flush();socket.waitForBytesWritten(150);return
     QLocalServer.removeServer('DesktopMusicPlayer-v1');server=QLocalServer();server.listen('DesktopMusicPlayer-v1')
-    window=Window();window.show()
+    window=Window();window.show();remote=RemoteControl(window)
     def incoming():
-        connection=server.nextPendingConnection()
-        if connection:connection.close();window.restore()
+        while (connection:=server.nextPendingConnection()):remote.attach(connection)
     server.newConnection.connect(incoming)
     app.aboutToQuit.connect(window.tray.hide)
     sys.exit(app.exec())

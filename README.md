@@ -50,6 +50,28 @@
 
 ![배경 이미지 편집](docs/preview-background.png)
 
+## 외부 프로그램에서 제어
+
+v0.2.4부터 다른 로컬 프로그램이나 자동화 도구가 화면을 누르지 않고 플레이어를 조작할 수 있습니다. 한 번만 실행되도록 쓰던 통로(`QLocalServer` 이름 `DesktopMusicPlayer-v1`, Windows에서는 `\\.\pipe\DesktopMusicPlayer-v1`)에 JSON 한 줄을 보내면 JSON 한 줄로 답합니다. 창을 앞으로 띄우거나 마우스를 움직이지 않으며, 창이 보조 모니터에 있거나 트레이에 숨어 있어도 동작합니다. 이 PC 안에서만 연결할 수 있고 네트워크 포트는 열지 않습니다.
+
+| 명령 | 예 | 동작 |
+| --- | --- | --- |
+| `search` | `{"cmd":"search","source":"local","q":"空色デイズ 中川翔子","limit":20}` | 로컬 보관함(`local`) 또는 유튜브(`youtube`)에서 찾고, 곡마다 검색어 낱말이 맞는 정도 `score`(0~1)를 붙여 돌려줍니다. 비슷한 낱말(`空色のデイズ`↔`空色デイズ`)은 0.8로 셉니다. |
+| `play` | `{"cmd":"play","source":"youtube","i":0}` | 그 출처의 마지막 검색 결과 `i`번째 곡을 대기열 끝에 넣고 바로 재생합니다. |
+| `pause` `resume` `toggle` `next` `prev` | `{"cmd":"pause"}` | 일시정지·다시 재생·전환·다음 곡·이전 곡 |
+| `volume` | `{"cmd":"volume","value":30}` | 볼륨 0~100 |
+| `shuffle` | `{"cmd":"shuffle"}` | 로컬 랜덤 재생 |
+| `now` `show` | `{"cmd":"now"}` | 지금 곡·재생 상태·위치·볼륨 / 창 보이기 |
+
+답은 `{"ok":true, "track":{…}, "playing":true, "volume":30, …}` 형식이고, 실패하면 `{"ok":false,"error":"…"}`입니다. JSON이 아닌 데이터(두 번째 실행이 보내는 `show`)는 예전처럼 창만 다시 보여 줍니다.
+
+```python
+import json
+with open(r"\\.\pipe\DesktopMusicPlayer-v1", "r+b", buffering=0) as pipe:
+    pipe.write(b'{"cmd":"now"}\n')
+    print(json.loads(pipe.read(65536).split(b"\n")[0]))
+```
+
 ## 개발과 검증
 
 `python -m unittest discover -s tests`로 기본 동작을 검증합니다.
